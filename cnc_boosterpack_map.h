@@ -5,7 +5,7 @@
 
   Part of grblHAL
 
-  Copyright (c) 2020 Terje Io
+  Copyright (c) 2020-2021 Terje Io
 
   Grbl is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -41,18 +41,18 @@
 
 // Define step pulse output pins.
 #define STEP_PORT   GPIO_PORTD_BASE
-#define X_STEP_PIN  GPIO_PIN_1
-#define Y_STEP_PIN  GPIO_PIN_2
-#define Z_STEP_PIN  GPIO_PIN_3
-#define HWSTEP_MASK (X_STEP_PIN|Y_STEP_PIN|Z_STEP_PIN) // All step bits
+#define X_STEP_BIT  GPIO_PIN_1
+#define Y_STEP_BIT  GPIO_PIN_2
+#define Z_STEP_BIT  GPIO_PIN_3
+#define HWSTEP_MASK (X_STEP_BIT|Y_STEP_BIT|Z_STEP_BIT) // All step bits
 #define STEP_OUTMODE GPIO_SHIFT1
 
 // Define step direction output pins. NOTE: All direction pins must be on the same port.
 #define DIRECTION_PORT      GPIO_PORTB_BASE
-#define X_DIRECTION_PIN     GPIO_PIN_7
-#define Y_DIRECTION_PIN     GPIO_PIN_6
-#define Z_DIRECTION_PIN     GPIO_PIN_4
-#define HWDIRECTION_MASK    (X_DIRECTION_PIN|Y_DIRECTION_PIN|Z_DIRECTION_PIN) // All direction bits
+#define X_DIRECTION_BIT     GPIO_PIN_7
+#define Y_DIRECTION_BIT     GPIO_PIN_6
+#define Z_DIRECTION_BIT     GPIO_PIN_4
+#define HWDIRECTION_MASK    (X_DIRECTION_BIT|Y_DIRECTION_BIT|Z_DIRECTION_BIT) // All direction bits
 #define DIRECTION_OUTMODE   GPIO_MAP
 
 #if TRINAMIC_ENABLE
@@ -99,7 +99,7 @@
 #define SPINDLE_ENABLE_PIN      GPIO_PIN_2
 
 #define SPINDLE_DIRECTION_PORT      GPIO_PORTE_BASE
-#define SPINDLE_DIRECTION_PIN       GPIO_PIN_3
+#define SPINDLE_DIRECTION_BIT       GPIO_PIN_3
 
 // Define flood and mist coolant enable output pins.
 #define COOLANT_FLOOD_PORT      GPIO_PORTD_BASE

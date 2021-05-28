@@ -106,39 +106,7 @@ static probe_state_t probe = {
     .connected = On
 };
 
-#if STEP_OUTMODE == GPIO_MAP
-
-    static const uint8_t c_step_outmap[8] = {
-        0,
-        X_STEP_PIN,
-        Y_STEP_PIN,
-        X_STEP_PIN|Y_STEP_PIN,
-        Z_STEP_PIN,
-        X_STEP_PIN|Z_STEP_PIN,
-        Y_STEP_PIN|Z_STEP_PIN,
-        X_STEP_PIN|Y_STEP_PIN|Z_STEP_PIN
-    };
-
-    static uint8_t step_outmap[8];
-
-#endif
-
-#if DIRECTION_OUTMODE == GPIO_MAP
-
-    static const uint8_t c_dir_outmap[8] = {
-        0,
-        X_DIRECTION_PIN,
-        Y_DIRECTION_PIN,
-        X_DIRECTION_PIN|Y_DIRECTION_PIN,
-        Z_DIRECTION_PIN,
-        X_DIRECTION_PIN|Z_DIRECTION_PIN,
-        Y_DIRECTION_PIN|Z_DIRECTION_PIN,
-        X_DIRECTION_PIN|Y_DIRECTION_PIN|Z_DIRECTION_PIN
-    };
-
-    static uint8_t dir_outmap[8];
-
-#endif
+#include "grbl/stepdir_map.h"
 
 static void spindle_set_speed (uint_fast16_t pwm_value);
 
@@ -460,7 +428,7 @@ inline static void spindle_on ()
 
 inline static void spindle_dir (bool ccw)
 {
-    GPIOPinWrite(SPINDLE_DIRECTION_PORT, SPINDLE_DIRECTION_PIN, (ccw ^ settings.spindle.invert.ccw) ? SPINDLE_DIRECTION_PIN : 0);
+    GPIOPinWrite(SPINDLE_DIRECTION_PORT, SPINDLE_DIRECTION_BIT, (ccw ^ settings.spindle.invert.ccw) ? SPINDLE_DIRECTION_BIT : 0);
 }
 
 
@@ -599,7 +567,7 @@ static spindle_state_t spindleGetState (void)
 
     state.on = GPIOPinRead(SPINDLE_ENABLE_PORT, SPINDLE_ENABLE_PIN) != 0;
     if(hal.driver_cap.spindle_dir)
-        state.ccw = GPIOPinRead(SPINDLE_DIRECTION_PORT, SPINDLE_DIRECTION_PIN) != 0;
+        state.ccw = GPIOPinRead(SPINDLE_DIRECTION_PORT, SPINDLE_DIRECTION_BIT) != 0;
     state.value ^= settings.spindle.invert.mask;
     if(pwmEnabled)
         state.on |= pwmEnabled;
@@ -696,18 +664,8 @@ static void settings_changed (settings_t *settings)
     spindle_pwm.offset = -1;
     hal.driver_cap.variable_spindle = spindle_precompute_pwm_values(&spindle_pwm, SysCtlClockGet());
 
-#if (STEP_OUTMODE == GPIO_MAP) || (DIRECTION_OUTMODE == GPIO_MAP)
-    uint8_t i;
-#endif
-
-#if STEP_OUTMODE == GPIO_MAP
-    for(i = 0; i < sizeof(step_outmap); i++)
-        step_outmap[i] = c_step_outmap[i ^ settings->step_invert.mask];
-#endif
-
-#if DIRECTION_OUTMODE == GPIO_MAP
-    for(i = 0; i < sizeof(dir_outmap); i++)
-        dir_outmap[i] = c_dir_outmap[i ^ settings->steppers.dir_invert.mask];
+#if USE_STEPDIR_MAP
+    stepdirmap_init(settings);
 #endif
 
     if(IOInitDone) {
@@ -954,8 +912,8 @@ static bool driver_setup (settings_t *settings)
     GPIOPinTypeGPIOOutput(SPINDLE_ENABLE_PORT, SPINDLE_ENABLE_PIN);
     GPIOPadConfigSet(SPINDLE_ENABLE_PORT, SPINDLE_ENABLE_PIN, GPIO_STRENGTH_8MA, GPIO_PIN_TYPE_STD);
 
-    GPIOPinTypeGPIOOutput(SPINDLE_DIRECTION_PORT, SPINDLE_DIRECTION_PIN);
-    GPIOPadConfigSet(SPINDLE_DIRECTION_PORT, SPINDLE_DIRECTION_PIN, GPIO_STRENGTH_8MA, GPIO_PIN_TYPE_STD);
+    GPIOPinTypeGPIOOutput(SPINDLE_DIRECTION_PORT, SPINDLE_DIRECTION_BIT);
+    GPIOPadConfigSet(SPINDLE_DIRECTION_PORT, SPINDLE_DIRECTION_BIT, GPIO_STRENGTH_8MA, GPIO_PIN_TYPE_STD);
 
     SysCtlPeripheralEnable(SPINDLE_PWM_TIMER_PERIPH);
     SysCtlDelay(26); // wait a bit for peripherals to wake up
@@ -1053,7 +1011,7 @@ bool driver_init (void)
 #endif
 
     hal.info = "TM4C123HP6PM";
-    hal.driver_version = "210423";
+    hal.driver_version = "210526";
 #ifdef BOARD_NAME
     hal.board = BOARD_NAME;
 #endif

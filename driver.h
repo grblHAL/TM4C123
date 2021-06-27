@@ -36,28 +36,8 @@
 #include "my_machine.h"
 #endif
 
-#include "grbl/hal.h"
-#include "grbl/grbl.h"
-#include "grbl/nuts_bolts.h"
+#include "grbl/driver_opts.h"
 
-#ifndef PWM_RAMPED
-#define PWM_RAMPED              0
-#endif
-#ifndef KEYPAD_ENABLE
-#define KEYPAD_ENABLE           0
-#endif
-#ifndef PPI_ENABLE
-#define PPI_ENABLE              0
-#endif
-#ifndef TRINAMIC_ENABLE
-#define TRINAMIC_ENABLE         0
-#endif
-#ifndef TRINAMIC_I2C
-#define TRINAMIC_I2C            0
-#endif
-#ifndef TRINAMIC_DEV
-#define TRINAMIC_DEV            0
-#endif
 #ifndef CNC_BOOSTERPACK_SHORTS
 #define CNC_BOOSTERPACK_SHORTS  0
 #endif

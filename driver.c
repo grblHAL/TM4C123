@@ -80,7 +80,7 @@ static void ppi_timeout_isr (void);
 
 #endif
 
-#ifdef SPINDLE_SYNC_ENABLE
+#if SPINDLE_SYNC_ENABLE
 
 typedef struct {                     // Set when last encoder pulse count did not match at last index
     float block_start;
@@ -225,7 +225,7 @@ static void stepperCyclesPerTick (uint32_t cycles_per_tick)
 // If spindle synchronized motion switch to PID version.
 static void stepperPulseStart (stepper_t *stepper)
 {
-#ifdef SPINDLE_SYNC_ENABLE
+#if SPINDLE_SYNC_ENABLE
     if(stepper->new_block) {
         if(stepper->exec_segment->spindle_sync) {
             spindle_tracker.stepper_pulse_start_normal = hal.stepper_pulse_start;
@@ -251,7 +251,7 @@ static void stepperPulseStart (stepper_t *stepper)
 // TODO: only delay after setting dir outputs?
 static void stepperPulseStartDelayed (stepper_t *stepper)
 {
-#ifdef SPINDLE_SYNC_ENABLE
+#if SPINDLE_SYNC_ENABLE
     if(stepper->new_block) {
         if(stepper->exec_segment->spindle_sync) {
             spindle_tracker.stepper_pulse_start_normal = hal.stepper_pulse_start;
@@ -542,7 +542,7 @@ static void spindleSetStateVariable (spindle_state_t state, float rpm)
     }
 }
 
-#ifdef SPINDLE_SYNC_ENABLE
+#if SPINDLE_SYNC_ENABLE
 static spindle_data_t spindleGetData (spindle_data_request_t request)
 {
     static spindle_data_t spindle_data;
@@ -575,7 +575,7 @@ static spindle_state_t spindleGetState (void)
 #if PWM_RAMPED
     state.at_speed = pwm_ramp.pwm_current == pwm_ramp.pwm_target;
 #endif
-#ifdef SPINDLE_SYNC_ENABLE
+#if SPINDLE_SYNC_ENABLE
     state.at_speed = spindleGetData(SpindleData_RPM).rpm == (state.on ? 300.0f : 0.0f);
 #endif
 
@@ -1011,7 +1011,7 @@ bool driver_init (void)
 #endif
 
     hal.info = "TM4C123HP6PM";
-    hal.driver_version = "210526";
+    hal.driver_version = "210626";
 #ifdef BOARD_NAME
     hal.board = BOARD_NAME;
 #endif
@@ -1044,21 +1044,18 @@ bool driver_init (void)
 #else
     hal.spindle.update_rpm = spindleUpdateRPM;
 #endif
-#ifdef SPINDLE_SYNC_ENABLE
+#if SPINDLE_SYNC_ENABLE
     hal.spindle.get_data = spindleGetData;
     hal.spindle.reset_data = spindleDataReset;
 #endif
 
     hal.control.get_state = systemGetState;
 
-    hal.stream.read = serialGetC;
-    hal.stream.write = serialWriteS;
-    hal.stream.write_all = serialWriteS;
-    hal.stream.write_char = serialPutC;
-    hal.stream.get_rx_buffer_available = serialRxFree;
-    hal.stream.reset_read_buffer = serialRxFlush;
-    hal.stream.cancel_read_buffer = serialRxCancel;
-    hal.stream.suspend_read = serialSuspendInput;
+    enqueue_realtime_command_ptr enqrt = hal.stream.enqueue_realtime_command;
+
+    memcpy(&hal.stream, serialInit(), sizeof(io_stream_t));
+
+    hal.stream.enqueue_realtime_command = enqrt;
 
     eeprom_init();
 
@@ -1089,7 +1086,7 @@ bool driver_init (void)
 #if PWM_RAMPED
     hal.driver_cap.spindle_at_speed = On;
 #endif
-#ifdef SPINDLE_SYNC_ENABLE
+#if SPINDLE_SYNC_ENABLE
     hal.driver_cap.spindle_sync = On;
     hal.driver_cap.spindle_at_speed = On;
 #endif

@@ -87,6 +87,9 @@
 #define SPINDLE_PWM_TIMER_BASE timerBase(SPINDLE_PWM_TIM)
 //#define SPINDLE_PWM_TIMER_INT timerINT(SPINDLE_PWM_TIM, A)
 
+#define DIGITAL_IN(port, pin) !!GPIOPinRead(port, 1<<pin)
+#define DIGITAL_OUT(port, pin, on) GPIOPinWrite(port, 1<<pin, (on) ? 1<<pin : 0);
+
 #ifdef BOARD_CNC_BOOSTERPACK
 #include "cnc_boosterpack_map.h"
 #elif defined(BOARD_MY_MACHINE)
@@ -123,6 +126,105 @@
 #define PPI_ENABLE_TIMER_PERIPH timerPeriph(PPI_ENABLE_TIM)
 #define PPI_ENABLE_TIMER_BASE timerBase(PPI_ENABLE_TIM)
 #define PPI_ENABLE_TIMER_INT timerINT(PPI_ENABLE_TIM, A)
+#endif
+
+#ifndef SPINDLE_DIRECTION_BIT
+#define SPINDLE_DIRECTION_BIT (1<<SPINDLE_DIRECTION_PIN)
+#endif
+#ifndef SPINDLE_ENABLE_BIT
+#define SPINDLE_ENABLE_BIT (1<<SPINDLE_ENABLE_PIN)
+#endif
+
+#ifndef COOLANT_FLOOD_BIT
+#define COOLANT_FLOOD_BIT (1<<COOLANT_FLOOD_PIN)
+#endif
+#ifndef COOLANT_MIST_BIT
+#define COOLANT_MIST_BIT (1<<COOLANT_MIST_PIN)
+#endif
+
+#ifndef PROBE_BIT
+#define PROBE_BIT (1<<PROBE_PIN)
+#endif
+
+#ifdef CONTROL_PORT
+#ifndef RESET_PORT
+#define RESET_PORT          CONTROL_PORT
+#endif
+#ifndef FEED_HOLD_PORT
+#define FEED_HOLD_PORT      CONTROL_PORT
+#endif
+#ifndef CYCLE_START_PORT
+#define CYCLE_START_PORT    CONTROL_PORT
+#endif
+#ifdef SAFETY_DOOR_PIN
+#if defined(ENABLE_SAFETY_DOOR_INPUT_PIN) && !defined(SAFETY_DOOR_PORT)
+#define SAFETY_DOOR_PORT    CONTROL_PORT
+#endif
+#endif
+#endif
+
+#ifndef RESET_BIT
+#define RESET_BIT (1<<RESET_PIN)
+#endif
+
+#ifndef FEED_HOLD_BIT
+#define FEED_HOLD_BIT (1<<FEED_HOLD_PIN)
+#endif
+
+#ifndef CYCLE_START_BIT
+#define CYCLE_START_BIT (1<<CYCLE_START_PIN)
+#endif
+
+#ifndef RESET_BIT
+#define FEED_HOLD_BIT (1<<RESET_PIN)
+#endif
+
+#ifndef SAFETY_DOOR_BIT
+#ifdef SAFETY_DOOR_PIN
+#define SAFETY_DOOR_BIT (1<<SAFETY_DOOR_BIT)
+#else
+#define SAFETY_DOOR_BIT 0
+#endif
+#endif
+
+#ifndef CONTROL_MASK
+#define CONTROL_MASK    (RESET_BIT|FEED_HOLD_BIT|CYCLE_START_BIT|SAFETY_DOOR_BIT)
+#endif
+
+typedef struct {
+    pin_function_t id;
+    uint32_t port;
+    uint8_t pin;
+    uint16_t bit;
+    pin_group_t group;
+    volatile bool active;
+    volatile bool debounce;
+    pin_irq_mode_t irq_mode;
+    pin_mode_t cap;
+    ioport_interrupt_callback_ptr interrupt_callback;
+    const char *description;
+} input_signal_t;
+
+typedef struct {
+    pin_function_t id;
+    uint32_t port;
+    uint8_t pin;
+    pin_group_t group;
+    const char *description;
+} output_signal_t;
+
+typedef struct {
+    uint8_t n_pins;
+    union {
+        input_signal_t *inputs;
+        output_signal_t *outputs;
+    } pins;
+} pin_group_pins_t;
+
+
+#ifdef HAS_IOPORTS
+void ioports_init(pin_group_pins_t *aux_inputs, pin_group_pins_t *aux_outputs);
+void ioports_event (input_signal_t *input);
 #endif
 
 #endif

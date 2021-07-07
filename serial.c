@@ -78,28 +78,6 @@ static void serialRxCancel (void)
     rxbuffer.head = (rxbuffer.tail + 1) & (RX_BUFFER_SIZE - 1);
 }
 
-static void serialWriteS (const char *data)
-{
-    char c, *ptr = (char *)data;
-
-    while((c = *ptr++) != '\0')
-        serialPutC(c);
-}
-
-static void serialWriteLn (const char *data)
-{
-    serialWriteS(data);
-    serialWriteS(ASCII_EOL);
-}
-
-static void serialWrite (const char *data, unsigned int length)
-{
-    char *ptr = (char *)data;
-
-    while(length--)
-        serialPutC(*ptr++);
-}
-
 static bool serialPutC (const char c)
 {
     uint_fast16_t next_head;
@@ -122,6 +100,27 @@ static bool serialPutC (const char c)
     return true;
 }
 
+static void serialWriteS (const char *data)
+{
+    char c, *ptr = (char *)data;
+
+    while((c = *ptr++) != '\0')
+        serialPutC(c);
+}
+/*
+static void serialWriteLn (const char *data)
+{
+    serialWriteS(data);
+    serialWriteS(ASCII_EOL);
+}
+*/
+static void serialWrite (const char *data, uint16_t length)
+{
+    char *ptr = (char *)data;
+
+    while(length--)
+        serialPutC(*ptr++);
+}
 
 //
 // serialGetC - returns -1 if no data available
@@ -168,8 +167,10 @@ const io_stream_t *serialInit (void)
         .read = serialGetC,
         .write = serialWriteS,
         .write_char = serialPutC,
+        .write_n = serialWrite,
         .write_all = serialWriteS,
         .get_rx_buffer_free = serialRxFree,
+        .get_tx_buffer_count = serialTxCount,
         .reset_read_buffer = serialRxFlush,
         .cancel_read_buffer = serialRxCancel,
         .suspend_read = serialSuspendInput

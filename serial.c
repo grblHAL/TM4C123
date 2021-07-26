@@ -38,11 +38,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "tiva.h"
 #include "serial.h"
+#include "grbl/protocol.h"
 
 static void uart_interrupt_handler (void);
 
 static stream_tx_buffer_t txbuffer = {0};
 static stream_rx_buffer_t rxbuffer = {0};
+static enqueue_realtime_command_ptr enqueue_realtime_command = protocol_enqueue_realtime_command;
 
 #ifdef BACKCHANNEL
     #define UARTCH UART0_BASE
@@ -159,6 +161,16 @@ static uint16_t serialTxCount(void) {
     return BUFCOUNT(head, tail, TX_BUFFER_SIZE);
 }
 
+static enqueue_realtime_command_ptr serialSetRtHandler (enqueue_realtime_command_ptr handler)
+{
+    enqueue_realtime_command_ptr prev = enqueue_realtime_command;
+
+    if(handler)
+        enqueue_realtime_command = handler;
+
+    return prev;
+}
+
 const io_stream_t *serialInit (void)
 {
     static const io_stream_t stream = {
@@ -173,7 +185,8 @@ const io_stream_t *serialInit (void)
         .get_tx_buffer_count = serialTxCount,
         .reset_read_buffer = serialRxFlush,
         .cancel_read_buffer = serialRxCancel,
-        .suspend_read = serialSuspendInput
+        .suspend_read = serialSuspendInput,
+        .set_enqueue_rt_handler = serialSetRtHandler
     };
 
 #ifdef BACKCHANNEL
@@ -258,7 +271,7 @@ static void uart_interrupt_handler (void)
             if(data == CMD_TOOL_ACK && !rxbuffer.backup) {
                 stream_rx_backup(&rxbuffer);
                 hal.stream.read = serialGetC; // restore normal input
-            } else if(!hal.stream.enqueue_realtime_command((char)data)) {
+            } else if(!enqueue_realtime_command((char)data)) {
                 rxbuffer.data[rxbuffer.head] = (char)data;  // Add data to buffer
                 rxbuffer.head = bptr;                       // and update pointer
             }

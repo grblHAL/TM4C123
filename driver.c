@@ -1302,7 +1302,7 @@ bool driver_init (void)
 #endif
 
     hal.info = "TM4C123HP6PM";
-    hal.driver_version = "210705";
+    hal.driver_version = "210716";
 #ifdef BOARD_NAME
     hal.board = BOARD_NAME;
 #endif
@@ -1342,7 +1342,7 @@ bool driver_init (void)
 
     hal.control.get_state = systemGetState;
 
-    memcpy(&hal.stream, serialInit(), offsetof(io_stream_t, enqueue_realtime_command));
+    memcpy(&hal.stream, serialInit(), sizeof(io_stream_t));
 
     eeprom_init();
 

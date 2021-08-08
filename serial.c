@@ -268,10 +268,7 @@ static void uart_interrupt_handler (void)
             UARTCharGet(UARTCH);                            // and do dummy read to clear interrupt;
         } else {
             data = UARTCharGet(UARTCH);
-            if(data == CMD_TOOL_ACK && !rxbuffer.backup) {
-                stream_rx_backup(&rxbuffer);
-                hal.stream.read = serialGetC; // restore normal input
-            } else if(!enqueue_realtime_command((char)data)) {
+            if(!enqueue_realtime_command((char)data)) {
                 rxbuffer.data[rxbuffer.head] = (char)data;  // Add data to buffer
                 rxbuffer.head = bptr;                       // and update pointer
             }

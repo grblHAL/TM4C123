@@ -345,7 +345,7 @@ inline static __attribute__((always_inline)) void set_dir_outputs (axes_signals_
 static void stepperEnable (axes_signals_t enable)
 {
     enable.mask ^= settings.steppers.enable_invert.mask;
-#if TRINAMIC_ENABLE && TRINAMIC_I2C
+#if TRINAMIC_MOTOR_ENABLE
     axes_signals_t tmc_enable = trinamic_stepper_enable(enable);
   #if !CNC_BOOSTERPACK // Trinamic BoosterPack does not support mixed drivers
     if(!tmc_enable.z)
@@ -516,10 +516,6 @@ static void limitsEnable (bool on, bool homing)
         GPIOIntEnable(LIMIT_PORT, LIMIT_MASK); // Enable Pin Change Interrupt
     else
         GPIOIntDisable(LIMIT_PORT, LIMIT_MASK); // Disable Pin Change Interrupt
-
-#if TRINAMIC_ENABLE
-    trinamic_homing(homing);
-#endif
 }
 
 // Returns limit state as an axes_signals_t variable.
@@ -1302,7 +1298,7 @@ bool driver_init (void)
 #endif
 
     hal.info = "TM4C123HP6PM";
-    hal.driver_version = "210716";
+    hal.driver_version = "210808";
 #ifdef BOARD_NAME
     hal.board = BOARD_NAME;
 #endif
@@ -1568,7 +1564,7 @@ static /* inline __attribute__((always_inline))*/ IRQHandler (input_signal_t *in
 #if TRINAMIC_ENABLE && TRINAMIC_I2C
                 case PinGroup_Motor_Warning:
                     trinamic_warn_handler();
-                    break:
+                    break;
 
                 case PinGroup_Motor_Fault:
                     trinamic_fault_handler();

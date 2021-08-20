@@ -1,6 +1,6 @@
 ## TM4C123GrblDriver
 
-A GrblHAL driver for the Texas Instruments [Tiva C \(EK-TM4C123GXL\) Launchpad](http://www.ti.com/tool/EK-TM4C123GXL)
+A grblHAL driver for the Texas Instruments [Tiva C \(EK-TM4C123GXL\) Launchpad](https://www.ti.com/tool/EK-TM4C123GXL)
 
 See the Wiki-page for [compiling grblHAL](https://github.com/grblHAL/core/wiki/Compiling-GrblHAL) for instructions for how to import the project, configure the driver and compile.
 
@@ -24,4 +24,4 @@ Default pin assignments matches the [CNC BoosterPack](https://github.com/terjeio
 
 
 ---
-2021-04-14
+2021-08-11

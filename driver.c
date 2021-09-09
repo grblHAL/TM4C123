@@ -1298,7 +1298,7 @@ bool driver_init (void)
 #endif
 
     hal.info = "TM4C123HP6PM";
-    hal.driver_version = "210808";
+    hal.driver_version = "210908";
 #ifdef BOARD_NAME
     hal.board = BOARD_NAME;
 #endif

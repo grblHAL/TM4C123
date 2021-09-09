@@ -161,6 +161,11 @@ static uint16_t serialTxCount(void) {
     return BUFCOUNT(head, tail, TX_BUFFER_SIZE);
 }
 
+static bool serialEnqueueRtCommand (char c)
+{
+    return enqueue_realtime_command(c);
+}
+
 static enqueue_realtime_command_ptr serialSetRtHandler (enqueue_realtime_command_ptr handler)
 {
     enqueue_realtime_command_ptr prev = enqueue_realtime_command;
@@ -181,6 +186,7 @@ const io_stream_t *serialInit (void)
         .write_char = serialPutC,
         .write_n = serialWrite,
         .write_all = serialWriteS,
+        .enqueue_rt_command = serialEnqueueRtCommand,
         .get_rx_buffer_free = serialRxFree,
         .get_tx_buffer_count = serialTxCount,
         .reset_read_buffer = serialRxFlush,

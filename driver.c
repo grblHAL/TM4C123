@@ -547,7 +547,7 @@ inline static control_signals_t systemGetState (void)
     signals.reset = !!(flags & RESET_BIT);
     signals.feed_hold = !!(flags & FEED_HOLD_BIT);
     signals.cycle_start = !!(flags & CYCLE_START_BIT);
-#ifdef ENABLE_SAFETY_DOOR_INPUT_BIT
+#ifdef ENABLE_SAFETY_DOOR_INPUT
     signals.safety_door_ajar = !!(flags & SAFETY_DOOR_BIT);
 #endif
     if(settings.control_invert.value)
@@ -1298,7 +1298,7 @@ bool driver_init (void)
 #endif
 
     hal.info = "TM4C123HP6PM";
-    hal.driver_version = "210908";
+    hal.driver_version = "210926";
 #ifdef BOARD_NAME
     hal.board = BOARD_NAME;
 #endif

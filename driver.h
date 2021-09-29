@@ -181,7 +181,7 @@
 
 #ifndef SAFETY_DOOR_BIT
 #ifdef SAFETY_DOOR_PIN
-#define SAFETY_DOOR_BIT (1<<SAFETY_DOOR_BIT)
+#define SAFETY_DOOR_BIT (1<<SAFETY_DOOR_PIN)
 #else
 #define SAFETY_DOOR_BIT 0
 #endif

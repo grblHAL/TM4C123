@@ -47,7 +47,7 @@ typedef struct {
     uint8_t addr;
     uint8_t count;
     uint8_t *data;
-#if KEYPAD_ENABLE
+#if KEYPAD_ENABLE == 1
     keycode_callback_ptr keycode_callback;
 #endif
     uint8_t buffer[8];
@@ -104,7 +104,7 @@ static uint8_t *I2C_ReadRegister (uint32_t i2cAddr, uint8_t bytes, bool block)
     return i2c.buffer;
 }
 
-#if KEYPAD_ENABLE
+#if KEYPAD_ENABLE == 1
 
 void I2C_GetKeycode (uint32_t i2cAddr, keycode_callback_ptr callback)
 {
@@ -200,6 +200,25 @@ void I2CInit (void)
 
     I2CMasterIntClear(I2C1_BASE);
     I2CMasterIntEnable(I2C1_BASE);
+
+    static const periph_pin_t scl = {
+        .function = Output_SCK,
+        .group = PinGroup_I2C,
+        .port = (void *)GPIO_PORTA_BASE,
+        .pin = 6,
+        .mode = { .mask = PINMODE_OD }
+    };
+
+    static const periph_pin_t sda = {
+        .function = Bidirectional_SDA,
+        .group = PinGroup_I2C,
+        .port = (void *)GPIO_PORTA_BASE,
+        .pin = 7,
+        .mode = { .mask = PINMODE_OD }
+    };
+
+    hal.periph_port.register_pin(&scl);
+    hal.periph_port.register_pin(&sda);
 }
 
 static void I2C_interrupt_handler (void)
@@ -261,9 +280,9 @@ static void I2C_interrupt_handler (void)
             *i2c.data = I2CMasterDataGet(I2C1_BASE);
             i2c.count = 0;
             i2c.state = I2CState_Idle;
-          #if KEYPAD_ENABLE
+          #if KEYPAD_ENABLE == 1
             if(i2c.keycode_callback) {
-                //  if(GPIOIntStatus(KEYINTR_PORT, KEYINTR_PIN) != 0) { // only add keycode when key is still pressed
+                //  if(GPIOIntStatus(I2C_STROBE_PORT, I2C_STROBE_PIN) != 0) { // only add keycode when key is still pressed
                 i2c.keycode_callback(*i2c.data);
                 i2c.keycode_callback = NULL;
             }

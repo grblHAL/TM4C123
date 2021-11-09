@@ -25,6 +25,7 @@
   along with Grbl.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <stdlib.h>
 #include <string.h>
 
 #include "driver.h"
@@ -33,14 +34,9 @@
 
 #include "grbl/limits.h"
 
-#if KEYPAD_ENABLE
-#include "keypad/keypad.h"
-static void keyclick_int_handler (void);
-#endif
-
 #if TRINAMIC_ENABLE
 static void trinamic_warn_isr (void);
-#if !KEYPAD_ENABLE
+#if !I2C_STROBE_ENABLE
 static void trinamic_diag1_isr (void);
 #endif
 #endif
@@ -114,6 +110,8 @@ typedef struct {
     uint32_t count;
     input_signal_t pins[8];
 } irq_handler_t;
+
+static periph_signal_t *periph_pins = NULL;
 
 static input_signal_t inputpin[] = {
     { .id = Input_Reset,          .port = RESET_PORT,         .pin = RESET_PIN,           .group = PinGroup_Control },
@@ -294,6 +292,23 @@ static void stepper_pulse_isr (void);
 static void stepper_pulse_isr_delayed (void);
 static void software_debounce_isr (void);
 static void systick_isr (void);
+
+#if I2C_STROBE_ENABLE
+
+static void i2c_strobe_isr (void);
+static driver_irq_handler_t i2c_strobe = { .type = IRQ_I2C_Strobe };
+
+static bool irq_claim (irq_type_t irq, uint_fast8_t id, irq_callback_ptr handler)
+{
+    bool ok;
+
+    if((ok = irq == IRQ_I2C_Strobe && i2c_strobe.callback == NULL))
+        i2c_strobe.callback = handler;
+
+    return ok;
+}
+
+#endif
 
 static void driver_delay_ms (uint32_t ms, void (*callback)(void))
 {
@@ -1085,16 +1100,54 @@ static void enumeratePins (bool low_level, pin_info_ptr pin_info)
 
         pin_info(&pin);
     };
-/*
-    for(i = 0; i < sizeof(peripin) / sizeof(output_signal_t); i++) {
-        pin.pin = peripin[i].pin;
-        pin.function = peripin[i].id;
-        pin.mode.output = PIN_ISOUTPUT(pin.function);
-        pin.group = peripin[i].group;
-        pin.port = low_level ? (void *)peripin[i].port : (void *)port2char(peripin[i].port);
+
+    periph_signal_t *ppin = periph_pins;
+
+    if(ppin) do {
+        pin.pin = ppin->pin.pin;
+        pin.function = ppin->pin.function;
+        pin.group = ppin->pin.group;
+        pin.port = low_level ? ppin->pin.port : (void *)port2char((uint32_t)ppin->pin.port);
+        pin.mode = ppin->pin.mode;
+        pin.description = ppin->pin.description;
 
         pin_info(&pin);
-    }; */
+
+        ppin = ppin->next;
+    } while(ppin);
+}
+
+void registerPeriphPin (const periph_pin_t *pin)
+{
+    periph_signal_t *add_pin = malloc(sizeof(periph_signal_t));
+
+    if(!add_pin)
+        return;
+
+    memcpy(&add_pin->pin, pin, sizeof(periph_pin_t));
+    add_pin->next = NULL;
+
+    if(periph_pins == NULL) {
+        periph_pins = add_pin;
+    } else {
+        periph_signal_t *last = periph_pins;
+        while(last->next)
+            last = last->next;
+        last->next = add_pin;
+    }
+}
+
+void setPeriphPinDescription (const pin_function_t function, const pin_group_t group, const char *description)
+{
+    periph_signal_t *ppin = periph_pins;
+
+    if(ppin) do {
+        if(ppin->pin.function == function && ppin->pin.group == group) {
+            ppin->pin.description = description;
+            ppin = NULL;
+        } else
+            ppin = ppin->next;
+    } while(ppin);
 }
 
 // Initializes MCU peripherals for Grbl use
@@ -1208,18 +1261,28 @@ static bool driver_setup (settings_t *settings)
     pwm_ramp.ms_cfg = pwm_ramp.pwm_current = pwm_ramp.pwm_target = 0;
   #endif
 
-#if KEYPAD_ENABLE
+    static const periph_pin_t pwm = {
+        .function = Output_SpindlePWM,
+        .group = PinGroup_SpindlePWM,
+        .port = (void *)SPINDLEPPORT,
+        .pin = SPINDLEPPIN,
+        .mode = { .mask = PINMODE_OUTPUT }
+    };
+
+    hal.periph_port.register_pin(&pwm);
+
+#if I2C_STROBE_ENABLE
 
    /*********************
     *  I2C KeyPad init  *
     *********************/
 
-    GPIOPinTypeGPIOInput(KEYINTR_PORT, KEYINTR_PIN);
-    GPIOPadConfigSet(KEYINTR_PORT, KEYINTR_PIN, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD_WPU); // -> WPU
+    GPIOPinTypeGPIOInput(I2C_STROBE_PORT, I2C_STROBE_PIN);
+    GPIOPadConfigSet(I2C_STROBE_PORT, I2C_STROBE_PIN, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD_WPU); // -> WPU
 
-    GPIOIntRegister(KEYINTR_PORT, keyclick_int_handler);
-    GPIOIntTypeSet(KEYINTR_PORT, KEYINTR_PIN, GPIO_BOTH_EDGES);
-    GPIOIntEnable(KEYINTR_PORT, KEYINTR_PIN);
+    GPIOIntRegister(I2C_STROBE_PORT, i2c_strobe_isr);
+    GPIOIntTypeSet(I2C_STROBE_PORT, I2C_STROBE_PIN, GPIO_BOTH_EDGES);
+    GPIOIntEnable(I2C_STROBE_PORT, I2C_STROBE_PIN);
 
 #endif
 
@@ -1227,7 +1290,7 @@ static bool driver_setup (settings_t *settings)
 
     // Configure input pin for DIAG1 signal (with pullup) and enable interrupt
     GPIOPinTypeGPIOInput(TRINAMIC_DIAG_IRQ_PORT, TRINAMIC_DIAG_IRQ_PIN);
-  #if !KEYPAD_ENABLE
+  #if !I2C_STROBE_ENABLE
     GPIOIntRegister(TRINAMIC_DIAG_IRQ_PORT, trinamic_diag1_isr); // Register a call-back function for interrupt
   #endif
     GPIOPadConfigSet(TRINAMIC_DIAG_IRQ_PORT, TRINAMIC_DIAG_IRQ_PIN, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD_WPU);
@@ -1292,13 +1355,8 @@ bool driver_init (void)
     HibernateRTCEnable();
 
     hal.f_step_timer = SysCtlPIOSCCalibrate(SYSCTL_PIOSC_CAL_AUTO);
-
-#if I2C_ENABLE
-    I2CInit();
-#endif
-
     hal.info = "TM4C123HP6PM";
-    hal.driver_version = "210926";
+    hal.driver_version = "211108";
 #ifdef BOARD_NAME
     hal.board = BOARD_NAME;
 #endif
@@ -1338,17 +1396,26 @@ bool driver_init (void)
 
     hal.control.get_state = systemGetState;
 
-    memcpy(&hal.stream, serialInit(), sizeof(io_stream_t));
-
-    eeprom_init();
-
     hal.irq_enable = enable_irq;
     hal.irq_disable = disable_irq;
+#if I2C_STROBE_ENABLE
+    hal.irq_claim = irq_claim;
+#endif
     hal.set_bits_atomic = bitsSetAtomic;
     hal.clear_bits_atomic = bitsClearAtomic;
     hal.set_value_atomic = valueSetAtomic;
     hal.get_elapsed_ticks = getElapsedTicks;
     hal.enumerate_pins = enumeratePins;
+    hal.periph_port.register_pin = registerPeriphPin;
+    hal.periph_port.set_pin_description = setPeriphPinDescription;
+
+    memcpy(&hal.stream, serialInit(), sizeof(io_stream_t));
+
+#if I2C_ENABLE
+    I2CInit();
+#endif
+
+    eeprom_init();
 
 #ifdef _ATC_H_
     hal.tool_select = atc_tool_selected;
@@ -1555,9 +1622,10 @@ static /* inline __attribute__((always_inline))*/ IRQHandler (input_signal_t *in
                     break;
 #endif
 
-#if KEYPAD_ENABLE
+#if I2C_STROBE_ENABLE
                 case PinGroup_Keypad:
-                    keypad_keyclick_handler(!GPIOPinRead(signal->port, signal->bit));
+                    if(i2c_strobe.callback)
+                        i2c_strobe.callback(0, !GPIOPinRead(input->port, input->bit));
                     break;
 #endif
 
@@ -1720,6 +1788,16 @@ static void port_q_isr (void)
 
     IRQHandler(irq_handler[13].pins, iflags);
 }
+
+#if I2C_STROBE_ENABLE
+
+static void i2c_strobe_isr (void)
+{
+    if(i2c_strobe.callback)
+        i2c_strobe.callback(0, GPIOPinRead(I2C_STROBE_PORT, I2C_STROBE_PIN) != 0);
+}
+
+#endif
 
 // Interrupt handler for 1 ms interval timer
 #if PWM_RAMPED

@@ -204,9 +204,9 @@
 #define AUXINPUT5_PIN           AUXIO5_PIN
 #endif
 
-#if KEYPAD_ENABLE
-#define KEYINTR_PORT            AUXIO6_PORT
-#define KEYINTR_PIN             AUXIO6_PIN
+#if I2C_STROBE_ENABLE
+#define I2C_STROBE_PORT         AUXIO6_PORT
+#define I2C_STROBE_PIN          AUXIO6_PIN
 #else
 #define AUXINPUT6_PORT          AUXIO6_PORT
 #define AUXINPUT6_PIN           AUXIO6_PIN

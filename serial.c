@@ -205,6 +205,22 @@ const io_stream_t *serialInit (void)
     GPIOPinConfigure(GPIO_PA1_U0TX);
     GPIOPinTypeUART(GPIO_PORTA_BASE, GPIO_PIN_0 | GPIO_PIN_1);
 
+    static const periph_pin_t tx = {
+        .function = Output_TX,
+        .group = PinGroup_UART,
+        .port = (void *)GPIO_PORTA_BASE,
+        .pin = 1,
+        .mode = { .mask = PINMODE_OUTPUT }
+    };
+
+    static const periph_pin_t rx = {
+        .function = Input_RX,
+        .group = PinGroup_UART,
+        .port = (void *)GPIO_PORTA_BASE,
+        .pin = 0,
+        .mode = { .mask = PINMODE_NONE }
+    };
+
 #else
 
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOB);
@@ -221,6 +237,22 @@ const io_stream_t *serialInit (void)
 
     GPIOPinTypeUART(GPIO_PORTB_BASE, GPIO_PIN_0 | GPIO_PIN_1);
 
+    static const periph_pin_t tx = {
+        .function = Output_TX,
+        .group = PinGroup_UART,
+        .port = (void *)GPIO_PORTB_BASE,
+        .pin = 1,
+        .mode = { .mask = PINMODE_OUTPUT }
+    };
+
+    static const periph_pin_t rx = {
+        .function = Input_RX,
+        .group = PinGroup_UART,
+        .port = (void *)GPIO_PORTB_BASE,
+        .pin = 0,
+        .mode = { .mask = PINMODE_NONE }
+    };
+
 #endif
 
     UARTClockSourceSet(UARTCH, UART_CLOCK_PIOSC);
@@ -234,6 +266,9 @@ const io_stream_t *serialInit (void)
     UARTTxIntModeSet(UARTCH, UART_TXINT_MODE_EOT);
 
     UARTEnable(UARTCH);
+
+    hal.periph_port.register_pin(&rx);
+    hal.periph_port.register_pin(&tx);
 
     return &stream;
 }

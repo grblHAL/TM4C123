@@ -105,7 +105,7 @@
 #define STEP_PULSE_LATENCY 1.3f // microseconds
 #endif
 
-#if KEYPAD_ENABLE || (TRINAMIC_ENABLE && TRINAMIC_I2C)
+#if I2C_STROBE_ENABLE || (TRINAMIC_ENABLE && TRINAMIC_I2C)
 #define I2C_ENABLE 1
 #else
 #define I2C_ENABLE 0

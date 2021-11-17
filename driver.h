@@ -210,6 +210,7 @@ typedef struct {
     uint32_t port;
     uint8_t pin;
     pin_group_t group;
+    pin_mode_t mode;
     const char *description;
 } output_signal_t;
 
@@ -220,7 +221,6 @@ typedef struct {
         output_signal_t *outputs;
     } pins;
 } pin_group_pins_t;
-
 
 #ifdef HAS_IOPORTS
 void ioports_init(pin_group_pins_t *aux_inputs, pin_group_pins_t *aux_outputs);

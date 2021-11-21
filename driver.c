@@ -1309,7 +1309,7 @@ static bool driver_setup (settings_t *settings)
 
   // Set defaults
 
-    IOInitDone = settings->version == 19;
+    IOInitDone = settings->version == 21;
 
     hal.settings_changed(settings);
     hal.stepper.go_idle(true);
@@ -1353,7 +1353,7 @@ bool driver_init (void)
 
     hal.f_step_timer = SysCtlPIOSCCalibrate(SYSCTL_PIOSC_CAL_AUTO);
     hal.info = "TM4C123HP6PM";
-    hal.driver_version = "211113";
+    hal.driver_version = "211121";
 #ifdef BOARD_NAME
     hal.board = BOARD_NAME;
 #endif
@@ -1495,7 +1495,7 @@ bool driver_init (void)
 
     // No need to move version check before init.
     // Compiler will fail any signature mismatch for existing entries.
-    return hal.version == 8;
+    return hal.version == 9;
 }
 
 /* interrupt handlers */

@@ -105,12 +105,6 @@
 #define STEP_PULSE_LATENCY 1.3f // microseconds
 #endif
 
-#if I2C_STROBE_ENABLE || (TRINAMIC_ENABLE && TRINAMIC_I2C)
-#define I2C_ENABLE 1
-#else
-#define I2C_ENABLE 0
-#endif
-
 // End configuration
 
 #if TRINAMIC_ENABLE

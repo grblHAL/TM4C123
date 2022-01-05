@@ -5,7 +5,7 @@
 
   Part of grblHAL
 
-  Copyright (c) 2020-2021 Terje Io
+  Copyright (c) 2020-2022 Terje Io
 
   Grbl is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -182,11 +182,11 @@
 #define AUXINPUT1_PIN           AUXIO1_PIN
 #endif
 
-#if MPG_MODE_ENABLE
-#define MODE_PORT               AUXIO2_PORT
+#if MPG_MODE == 1
+#define MPG_MODE_PORT           AUXIO2_PORT
 #define MODE_GPIO               GPIO2_GPIO
 #define MODE_INT                GPIO2_INT
-#define MODE_SWITCH_PIN         AUXIO2_PIN
+#define MPG_MODE_PIN            AUXIO2_PIN
 #else
 #define AUXINPUT2_PORT          AUXIO2_PORT
 #define AUXINPUT2_PIN           AUXIO2_PIN

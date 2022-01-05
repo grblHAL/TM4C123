@@ -5,7 +5,7 @@
 
   Part of grblHAL
 
-  Copyright (c) 2016-2021 Terje Io
+  Copyright (c) 2016-2022 Terje Io
 
   Some parts
    Copyright (c) 2011-2015 Sungeun K. Jeon
@@ -33,6 +33,7 @@
 #include "serial.h"
 
 #include "grbl/limits.h"
+#include "grbl/protocol.h"
 
 #if TRINAMIC_ENABLE
 static void trinamic_warn_isr (void);
@@ -124,8 +125,8 @@ static input_signal_t inputpin[] = {
 #ifdef KEYPAD_IRQ_PIN
     { .id = Input_KeypadStrobe,   .port = KEYPAD_PORT,        .pin = KEYPAD_IRQ_PIN,      .group = PinGroup_Keypad },
 #endif
-#ifdef MODE_SWITCH_PIN
-    { .id = Input_ModeSelect,     .port = MODE_PORT,          .pin = MODE_SWITCH_PIN,     .group = PinGroup_MPG },
+#ifdef MPG_MODE_PIN
+    { .id = Input_ModeSelect,     .port = MPG_MODE_PORT,      .pin = MPG_MODE_PIN,        .group = PinGroup_MPG },
 #endif
 // Limit input pins must be consecutive in this array
     { .id = Input_LimitX,         .port = X_LIMIT_PORT,       .pin = X_LIMIT_PIN,         .group = PinGroup_Limit },
@@ -838,6 +839,27 @@ static void disable_irq (void)
     IntMasterDisable();
 }
 
+#if  MPG_MODE == 1
+
+static void mpg_select (sys_state_t state)
+{
+    stream_mpg_enable(GPIOPinRead(MPG_MODE_PORT, MPG_MODE_BIT) == 0);
+
+    GPIOIntEnable(MPG_MODE_PORT, MPG_MODE_BIT);
+}
+
+static void mpg_enable (sys_state_t state)
+{
+    if(sys.mpg_mode == (GPIOPinRead(MPG_MODE_PORT, MPG_MODE_BIT) == 0))
+        mpg_select(state);
+
+#if I2C_STROBE_ENABLE
+//    BITBAND_PERI(I2C_STROBE_PORT->IE, I2C_STROBE_PIN) = 1;
+#endif
+}
+
+#endif
+
 uint32_t getElapsedTicks (void)
 {
     return elapsed_tics;
@@ -968,6 +990,7 @@ static void settings_changed (settings_t *settings)
                     break;
 
                 case Input_ModeSelect:
+                    pullup = true;
                     input->irq_mode = IRQ_Mode_Change;
                     break;
 
@@ -1008,12 +1031,6 @@ static void settings_changed (settings_t *settings)
             if(irq_handler[--i].count)
                 GPIOIntRegister(irq_handler[i].port, irq_handler[i].handler);
         } while(i);
-
-#if MPG_MODE_ENABLE
-       if(sys.mpg_mode != !(GPIOPinRead(MODE_PORT, MODE_SWITCH_BIT) == MODE_SWITCH_BIT))
-            modeSelect(true);
-       GPIOIntEnable(MODE_PORT, MODE_SWITCH_BIT);
-#endif
     }
 }
 
@@ -1353,7 +1370,7 @@ bool driver_init (void)
 
     hal.f_step_timer = SysCtlPIOSCCalibrate(SYSCTL_PIOSC_CAL_AUTO);
     hal.info = "TM4C123HP6PM";
-    hal.driver_version = "211210";
+    hal.driver_version = "220104";
 #ifdef BOARD_NAME
     hal.board = BOARD_NAME;
 #endif
@@ -1406,7 +1423,7 @@ bool driver_init (void)
     hal.periph_port.register_pin = registerPeriphPin;
     hal.periph_port.set_pin_description = setPeriphPinDescription;
 
-    stream_connect(serialInit(115200));
+    stream_connect(serialInit());
 
 #if I2C_ENABLE
     I2CInit();
@@ -1445,6 +1462,10 @@ bool driver_init (void)
     hal.driver_cap.control_pull_up = On;
     hal.driver_cap.limits_pull_up = On;
     hal.driver_cap.probe_pull_up = On;
+#if  MPG_MODE == 1
+    if(hal.driver_cap.mpg_mode = stream_mpg_register(serial2Init(115200), false, NULL))
+        protocol_enqueue_rt_command(mpg_enable);
+#endif
 
     uint32_t i;
     input_signal_t *input;
@@ -1614,10 +1635,10 @@ static /* inline __attribute__((always_inline))*/ IRQHandler (input_signal_t *in
 
             else switch(input->group) {
 
-#if MPG_MODE_ENABLE
+#if  MPG_MODE == 1
                 case PinGroup_MPG:
-//                    if(delay.ms == 0) // Ignore if delay is active
-//                        driver_delay_ms(50, modeChange);
+                    GPIOIntDisable(MPG_MODE_PORT, MPG_MODE_BIT);
+                    protocol_enqueue_rt_command(mpg_select);
                     break;
 #endif
 

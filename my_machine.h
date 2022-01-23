@@ -3,7 +3,7 @@
 
   Part of grblHAL
 
-  Copyright (c) 2020-2021 Terje Io
+  Copyright (c) 2020-2022 Terje Io
 
   Grbl is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -25,6 +25,7 @@
 
 // Configuration
 // Uncomment to enable.
+//#define SAFETY_DOOR_ENABLE      1 // Enable safety door input.
 //#define KEYPAD_ENABLE           1 // Set to 1 for I2C keypad, 2 for other input such as serial data
 //#define TRINAMIC_ENABLE      2130 // Trinamic TMC2130 stepper driver support. NOTE: work in progress.
 //#define TRINAMIC_ENABLE      5160 // Trinamic TMC5160 stepper driver support. NOTE: work in progress.

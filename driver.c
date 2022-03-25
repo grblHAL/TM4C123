@@ -34,6 +34,7 @@
 
 #include "grbl/limits.h"
 #include "grbl/protocol.h"
+#include "grbl/state_machine.h"
 
 #if TRINAMIC_ENABLE
 static void trinamic_warn_isr (void);
@@ -702,21 +703,10 @@ static void spindle_set_speed (uint_fast16_t pwm_value)
 
 #endif
 
-#ifdef SPINDLE_PWM_DIRECT
-
 static uint_fast16_t spindleGetPWM (float rpm)
 {
     return spindle_compute_pwm_value(&spindle_pwm, rpm, false);
 }
-
-#else
-
-static void spindleUpdateRPM (float rpm)
-{
-    spindle_set_speed(spindle_compute_pwm_value(&spindle_pwm, rpm, false));
-}
-
-#endif
 
 // Start or stop spindle
 static void spindleSetStateVariable (spindle_state_t state, float rpm)
@@ -754,8 +744,7 @@ static spindle_state_t spindleGetState (void)
     spindle_state_t state = {0};
 
     state.on = GPIOPinRead(SPINDLE_ENABLE_PORT, SPINDLE_ENABLE_BIT) != 0;
-    if(hal.driver_cap.spindle_dir)
-        state.ccw = GPIOPinRead(SPINDLE_DIRECTION_PORT, SPINDLE_DIRECTION_BIT) != 0;
+    state.ccw = GPIOPinRead(SPINDLE_DIRECTION_PORT, SPINDLE_DIRECTION_BIT) != 0;
     state.value ^= settings.spindle.invert.mask;
     if(pwmEnabled)
         state.on |= pwmEnabled;
@@ -882,7 +871,7 @@ static irq_handler_t *get_handler (uint32_t port)
 static void settings_changed (settings_t *settings)
 {
     spindle_pwm.offset = -1;
-    hal.driver_cap.variable_spindle = spindle_precompute_pwm_values(&spindle_pwm, SysCtlClockGet());
+    hal.spindle.cap.variable = spindle_precompute_pwm_values(&spindle_pwm, SysCtlClockGet());
 
 #if USE_STEPDIR_MAP
     stepdirmap_init(settings);
@@ -892,7 +881,7 @@ static void settings_changed (settings_t *settings)
 
         stepperEnable(settings->steppers.deenergize);
 
-        if(hal.driver_cap.variable_spindle) {
+        if(hal.spindle.cap.variable) {
             TimerPrescaleSet(SPINDLE_PWM_TIMER_BASE, TIMER_A, spindle_pwm.period >> 16);
             TimerLoadSet(SPINDLE_PWM_TIMER_BASE, TIMER_A, spindle_pwm.period & 0xFFFF);
             hal.spindle.set_state = spindleSetStateVariable;
@@ -1372,7 +1361,7 @@ bool driver_init (void)
 
     hal.f_step_timer = SysCtlPIOSCCalibrate(SYSCTL_PIOSC_CAL_AUTO);
     hal.info = "TM4C123HP6PM";
-    hal.driver_version = "220111";
+    hal.driver_version = "220323";
 #ifdef BOARD_NAME
     hal.board = BOARD_NAME;
 #endif
@@ -1397,14 +1386,17 @@ bool driver_init (void)
     hal.probe.get_state = probeGetState;
     hal.probe.configure = probeConfigure;
 
+    hal.spindle.cap.direction = On;
+    hal.spindle.cap.variable = On;
+    hal.spindle.cap.pwm_invert = On;
+    hal.spindle.cap.laser = On;
+#if PWM_RAMPED || SPINDLE_SYNC_ENABLE
+   hal.spindle.cap_at_speed = On;
+#endif
     hal.spindle.set_state = spindleSetState;
     hal.spindle.get_state = spindleGetState;
-#ifdef SPINDLE_PWM_DIRECT
     hal.spindle.get_pwm = spindleGetPWM;
     hal.spindle.update_pwm = spindle_set_speed;
-#else
-    hal.spindle.update_rpm = spindleUpdateRPM;
-#endif
 #if SPINDLE_SYNC_ENABLE
     hal.spindle.get_data = spindleGetData;
     hal.spindle.reset_data = spindleDataReset;
@@ -1447,15 +1439,8 @@ bool driver_init (void)
 #ifdef SAFETY_DOOR_PIN
     hal.signals_cap.safety_door_ajar = On;
 #endif
-    hal.driver_cap.spindle_dir = On;
-    hal.driver_cap.variable_spindle = On;
-    hal.driver_cap.spindle_pwm_invert = On;
-#if PWM_RAMPED
-    hal.driver_cap.spindle_at_speed = On;
-#endif
 #if SPINDLE_SYNC_ENABLE
     hal.driver_cap.spindle_sync = On;
-    hal.driver_cap.spindle_at_speed = On;
 #endif
     hal.driver_cap.mist_control = On;
     hal.driver_cap.software_debounce = On;

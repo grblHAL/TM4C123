@@ -5,7 +5,7 @@
 
   Part of grblHAL
 
-  Copyright (c) 2016-2021 Terje Io
+  Copyright (c) 2016-2022 Terje Io
   Copyright (c) 2011-2015 Sungeun K. Jeon
   Copyright (c) 2009-2011 Simen Svale Skogsrud
 
@@ -218,6 +218,4 @@ typedef struct {
 #ifdef HAS_IOPORTS
 void ioports_init(pin_group_pins_t *aux_inputs, pin_group_pins_t *aux_outputs);
 void ioports_event (input_signal_t *input);
-#endif
-
 #endif

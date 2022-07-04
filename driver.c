@@ -671,7 +671,7 @@ static void spindle_set_speed (uint_fast16_t pwm_value)
 {
     if (pwm_value == spindle_pwm.off_value) {
         pwmEnabled = false;
-        if(settings.spindle.flags.pwm_action == SpindleAction_DisableWithZeroSPeed)
+        if(settings.spindle.flags.enable_rpm_controlled)
             spindle_off();
         if(spindle_pwm.always_on) {
             TimerPrescaleMatchSet(SPINDLE_PWM_TIMER_BASE, TIMER_A, spindle_pwm.off_value >> 16);
@@ -711,13 +711,18 @@ static uint_fast16_t spindleGetPWM (float rpm)
 // Start or stop spindle
 static void spindleSetStateVariable (spindle_state_t state, float rpm)
 {
-    if (!state.on || rpm == 0.0f) {
-        spindle_set_speed(spindle_pwm.off_value);
-        spindle_off();
-    } else {
+#ifdef SPINDLE_DIRECTION_PIN
+    if (state.on)
         spindle_dir(state.ccw);
-        spindle_set_speed(spindle_compute_pwm_value(&spindle_pwm, rpm, false));
+#endif
+    if(!settings.spindle.flags.enable_rpm_controlled) {
+        if (state.on)
+            spindle_on();
+        else
+            spindle_off();
     }
+
+    spindle_set_speed(state.on ? spindle_compute_pwm_value(&spindle_pwm, rpm, false) : spindle_pwm.off_value);
 }
 
 #if SPINDLE_SYNC_ENABLE
@@ -871,7 +876,7 @@ static irq_handler_t *get_handler (uint32_t port)
 static void settings_changed (settings_t *settings)
 {
     spindle_pwm.offset = -1;
-    hal.spindle.cap.variable = spindle_precompute_pwm_values(&spindle_pwm, SysCtlClockGet());
+    hal.spindle.cap.variable = !settings->spindle.flags.pwm_disable && spindle_precompute_pwm_values(&spindle_pwm, SysCtlClockGet());
 
 #if USE_STEPDIR_MAP
     stepdirmap_init(settings);
@@ -885,8 +890,13 @@ static void settings_changed (settings_t *settings)
             TimerPrescaleSet(SPINDLE_PWM_TIMER_BASE, TIMER_A, spindle_pwm.period >> 16);
             TimerLoadSet(SPINDLE_PWM_TIMER_BASE, TIMER_A, spindle_pwm.period & 0xFFFF);
             hal.spindle.set_state = spindleSetStateVariable;
-        } else
+        } else {
+            if(pwmEnabled)
+                hal.spindle.set_state((spindle_state_t){0}, 0.0f);
             hal.spindle.set_state = spindleSetState;
+        }
+
+        spindle_update_caps(hal.spindle.cap.variable);
 
         pulse_length = (uint32_t)(10.0f * (settings->steppers.pulse_microseconds - STEP_PULSE_LATENCY)) - 1;
 
@@ -1361,7 +1371,7 @@ bool driver_init (void)
 
     hal.f_step_timer = SysCtlPIOSCCalibrate(SYSCTL_PIOSC_CAL_AUTO);
     hal.info = "TM4C123HP6PM";
-    hal.driver_version = "220323";
+    hal.driver_version = "220703";
 #ifdef BOARD_NAME
     hal.board = BOARD_NAME;
 #endif

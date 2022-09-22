@@ -894,7 +894,7 @@ static void settings_changed (settings_t *settings)
             hal.spindle.set_state = spindleSetState;
         }
 
-        spindle_update_caps(hal.spindle.cap.variable);
+        spindle_update_caps(hal.spindle.cap.variable ? &spindle_pwm : NULL);
 
         pulse_length = (uint32_t)(10.0f * (settings->steppers.pulse_microseconds - STEP_PULSE_LATENCY)) - 1;
 
@@ -1367,7 +1367,7 @@ bool driver_init (void)
 
     hal.f_step_timer = SysCtlPIOSCCalibrate(SYSCTL_PIOSC_CAL_AUTO);
     hal.info = "TM4C123HP6PM";
-    hal.driver_version = "220907";
+    hal.driver_version = "220922";
 #ifdef BOARD_NAME
     hal.board = BOARD_NAME;
 #endif

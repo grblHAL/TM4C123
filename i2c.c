@@ -47,9 +47,7 @@ typedef struct {
     uint8_t addr;
     uint8_t count;
     uint8_t *data;
-#if KEYPAD_ENABLE == 1
     keycode_callback_ptr keycode_callback;
-#endif
     uint8_t buffer[8];
 } i2c_trans_t;
 
@@ -104,9 +102,7 @@ static uint8_t *I2C_ReadRegister (uint32_t i2cAddr, uint8_t bytes, bool block)
     return i2c.buffer;
 }
 
-#if KEYPAD_ENABLE == 1
-
-void I2C_GetKeycode (uint32_t i2cAddr, keycode_callback_ptr callback)
+void i2c_get_keycode (uint_fast16_t i2cAddr, keycode_callback_ptr callback)
 {
     while(i2cIsBusy);
 
@@ -114,8 +110,6 @@ void I2C_GetKeycode (uint32_t i2cAddr, keycode_callback_ptr callback)
 
     I2C_Receive(i2cAddr, 1, false);
 }
-
-#endif
 
 #if TRINAMIC_ENABLE && TRINAMIC_I2C
 
@@ -182,7 +176,7 @@ TMC_spi_status_t tmc_spi_write (trinamic_motor_t driver, TMC_spi_datagram_t *dat
 
 #endif
 
-void I2CInit (void)
+void i2c_init (void)
 {
     SysCtlPeripheralEnable(SYSCTL_PERIPH_I2C1);
     SysCtlPeripheralReset(SYSCTL_PERIPH_I2C1);

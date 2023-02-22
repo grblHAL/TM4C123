@@ -35,6 +35,7 @@
 #include "grbl/machine_limits.h"
 #include "grbl/protocol.h"
 #include "grbl/state_machine.h"
+#include "grbl/pin_bits_masks.h"
 
 #if TRINAMIC_ENABLE
 static void trinamic_warn_isr (void);
@@ -1426,7 +1427,7 @@ bool driver_init (void)
     stream_connect(serialInit());
 
 #if I2C_ENABLE
-    I2CInit();
+    i2c_init();
 #endif
 
     eeprom_init();

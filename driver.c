@@ -390,7 +390,7 @@ static void stepperWakeUp (void)
     // Enable stepper drivers.
     stepperEnable((axes_signals_t){AXES_BITMASK});
 
-    TimerLoadSet(STEPPER_TIMER_BASE, TIMER_A, 5000);    // dummy...
+    TimerLoadSet(STEPPER_TIMER_BASE, TIMER_A, hal.f_step_timer / 500); // ~2ms delay to allow drivers time to wake up.
     TimerEnable(STEPPER_TIMER_BASE, TIMER_A);
 }
 
@@ -1379,7 +1379,7 @@ bool driver_init (void)
 
     hal.f_step_timer = SysCtlPIOSCCalibrate(SYSCTL_PIOSC_CAL_AUTO);
     hal.info = "TM4C123HP6PM";
-    hal.driver_version = "230331";
+    hal.driver_version = "230511";
 #ifdef BOARD_NAME
     hal.board = BOARD_NAME;
 #endif

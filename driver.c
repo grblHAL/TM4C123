@@ -531,9 +531,9 @@ static void stepperPulseStartSyncronized (stepper_t *stepper)
 
 
 // Enable/disable limit pins interrupt
-static void limitsEnable (bool on, bool homing)
+static void limitsEnable (bool on, axes_signals_t homing_cycle)
 {
-    if (on && settings.limits.flags.hard_enabled)
+    if (on && homing_cycle.mask == 0)
         GPIOIntEnable(LIMIT_PORT, LIMIT_MASK); // Enable Pin Change Interrupt
     else
         GPIOIntDisable(LIMIT_PORT, LIMIT_MASK); // Disable Pin Change Interrupt
@@ -595,7 +595,7 @@ static void probeConfigure (bool is_probe_away, bool probing)
 }
 
 // Returns the probe connected and triggered pin states.
-probe_state_t probeGetState (void)
+static probe_state_t probeGetState (void)
 {
     probe_state_t state = {0};
     state.connected = probe.connected;
@@ -1379,7 +1379,7 @@ bool driver_init (void)
 
     hal.f_step_timer = SysCtlPIOSCCalibrate(SYSCTL_PIOSC_CAL_AUTO);
     hal.info = "TM4C123HP6PM";
-    hal.driver_version = "230511";
+    hal.driver_version = "230828";
 #ifdef BOARD_NAME
     hal.board = BOARD_NAME;
 #endif
@@ -1465,6 +1465,7 @@ bool driver_init (void)
     hal.signals_cap.safety_door_ajar = On;
 #endif
     hal.limits_cap = get_limits_cap();
+    hal.home_cap = get_home_cap();
 #if SPINDLE_SYNC_ENABLE
     hal.driver_cap.spindle_sync = On;
 #endif

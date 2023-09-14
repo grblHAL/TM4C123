@@ -533,10 +533,27 @@ static void stepperPulseStartSyncronized (stepper_t *stepper)
 // Enable/disable limit pins interrupt
 static void limitsEnable (bool on, axes_signals_t homing_cycle)
 {
-    if (on && homing_cycle.mask == 0)
-        GPIOIntEnable(LIMIT_PORT, LIMIT_MASK); // Enable Pin Change Interrupt
-    else
-        GPIOIntDisable(LIMIT_PORT, LIMIT_MASK); // Disable Pin Change Interrupt
+    bool disable = !on;
+    axes_signals_t pin;
+    input_signal_t *limit;
+    uint_fast8_t idx = limit_inputs.n_pins;
+    limit_signals_t homing_source = xbar_get_homing_source_from_cycle(homing_cycle);
+
+    do {
+        limit = &limit_inputs.pins.inputs[--idx];
+        if(limit->group & (PinGroup_Limit|PinGroup_LimitMax)) {
+            if(on && homing_cycle.mask) {
+                pin = xbar_fn_to_axismask(limit->id);
+                disable = limit->group == PinGroup_Limit ? (pin.mask & homing_source.min.mask) : (pin.mask & homing_source.max.mask);
+            }
+            if(disable)
+                GPIOIntDisable(LIMIT_PORT, limit->bit);     // Disable pin change interrupt.
+            else {
+                GPIOIntClear(limit->port, limit->bit);      // Clear and
+                GPIOIntEnable(limit->port, limit->bit);     // enable pin change interrupt.
+            }
+       }
+    } while(idx);
 }
 
 // Returns limit state as an axes_signals_t variable.
@@ -1379,7 +1396,7 @@ bool driver_init (void)
 
     hal.f_step_timer = SysCtlPIOSCCalibrate(SYSCTL_PIOSC_CAL_AUTO);
     hal.info = "TM4C123HP6PM";
-    hal.driver_version = "230828";
+    hal.driver_version = "230907";
 #ifdef BOARD_NAME
     hal.board = BOARD_NAME;
 #endif

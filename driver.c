@@ -55,8 +55,6 @@ static void trinamic_diag1_isr (void);
 // prescale step counter to 20Mhz (80 / (STEPPER_DRIVER_PRESCALER + 1))
 #define STEPPER_DRIVER_PRESCALER 3
 
-//#define SPINDLE_SYNC_ENABLE // do NOT enable - not complete!
-
 #if PWM_RAMPED
 
 #define SPINDLE_RAMP_STEP_INCR 20 // timer compare register change per ramp step
@@ -78,22 +76,6 @@ static pwm_ramp_t pwm_ramp;
 #include "laser/ppi.h"
 
 static void ppi_timeout_isr (void);
-
-#endif
-
-#if SPINDLE_SYNC_ENABLE
-
-typedef struct {                     // Set when last encoder pulse count did not match at last index
-    float block_start;
-    float prev_pos;
-    float dpp; // distance per pulse in mm
-    void (*stepper_pulse_start_normal)(stepper_t *stepper);
-    uint32_t timer_value_start;
-    uint_fast8_t segment_id;
-    uint32_t segments;
-} spindle_sync_t;
-
-static void stepperPulseStartSyncronized (stepper_t *stepper);
 
 #endif
 
@@ -274,20 +256,24 @@ static irq_handler_t irq_handler[] = {
 
 #include "grbl/stepdir_map.h"
 
-static bool pwmEnabled = false, IOInitDone = false;
+static bool IOInitDone = false;
 static uint32_t pulse_length, pulse_delay;
 static volatile uint32_t elapsed_tics = 0;
 static axes_signals_t next_step_outbits;
-static spindle_id_t spindle_id = -1;
-static spindle_pwm_t spindle_pwm = {0};
 static pin_group_pins_t limit_inputs = {0};
 static debounce_queue_t debounce_queue = {0};
 static delay_t delay = { .ms = 1, .callback = NULL }; // NOTE: initial ms set to 1 for "resetting" systick timer on startup
 static probe_state_t probe = {
     .connected = On
 };
-
-static void spindle_set_speed (uint_fast16_t pwm_value);
+#if DRIVER_SPINDLE_ENABLE
+static spindle_id_t spindle_id = -1;
+#if DRIVER_SPINDLE_PWM_ENABLE
+static bool pwmEnabled = false;
+static spindle_pwm_t spindle_pwm;
+#define pwm(s) ((spindle_pwm_t *)s->context)
+#endif // DRIVER_SPINDLE_PWM_ENABLE
+#endif // DRIVER_SPINDLE_ENABLE
 
 // Interrupt handler prototypes
 
@@ -420,20 +406,8 @@ static void stepperCyclesPerTick (uint32_t cycles_per_tick)
 // If spindle synchronized motion switch to PID version.
 static void stepperPulseStart (stepper_t *stepper)
 {
-#if SPINDLE_SYNC_ENABLE
-    if(stepper->new_block) {
-        if(stepper->exec_segment->spindle_sync) {
-            spindle_tracker.stepper_pulse_start_normal = hal.stepper_pulse_start;
-            hal.stepper_pulse_start = stepperPulseStartSyncronized;
-            stepperPulseStartSyncronized(stepper);
-            return;
-        }
-        set_dir_outputs(stepper->dir_outbits);
-    }
-#else
     if(stepper->dir_change)
         set_dir_outputs(stepper->dir_outbits);
-#endif
 
     if(stepper->step_outbits.value) {
         set_step_outputs(stepper->step_outbits);
@@ -446,17 +420,6 @@ static void stepperPulseStart (stepper_t *stepper)
 // TODO: only delay after setting dir outputs?
 static void stepperPulseStartDelayed (stepper_t *stepper)
 {
-#if SPINDLE_SYNC_ENABLE
-    if(stepper->new_block) {
-        if(stepper->exec_segment->spindle_sync) {
-            spindle_tracker.stepper_pulse_start_normal = hal.stepper_pulse_start;
-            hal.stepper_pulse_start = stepperPulseStartSyncronized;
-            stepperPulseStartSyncronized(stepper);
-            return;
-        }
-        set_dir_outputs(stepper->dir_outbits);
-    }
-#else
     if(stepper->dir_change) {
 
         set_dir_outputs(stepper->dir_outbits);
@@ -470,65 +433,12 @@ static void stepperPulseStartDelayed (stepper_t *stepper)
 
         return;
     }
-#endif
 
     if(stepper->step_outbits.value) {
         set_step_outputs(stepper->step_outbits);
         TimerEnable(PULSE_TIMER_BASE, TIMER_A);
     }
 }
-
-#if SPINDLE_SYNC_ENABLE
-
-#error Spindle sync code not ready!
-
-// Spindle sync version: sets stepper direction and pulse pins and starts a step pulse.
-// Switches back to "normal" version if spindle synchronized motion is finished.
-// TODO: add delayed pulse handling...
-static void stepperPulseStartSyncronized (stepper_t *stepper)
-{
-    static spindle_sync_t spindle_sync;
-
-    if(stepper->new_block) {
-        if(!stepper->exec_segment->spindle_sync) {
-            hal.stepper_pulse_start = spindle_tracker.stepper_pulse_start_normal;
-            hal.stepper_pulse_start(stepper);
-            return;
-        } else {
-            spindle_sync.dpp = stepper->exec_block->programmed_rate * 120.0f;
-            spindle_sync.prev_pos = 0.0f;
-            spindle_sync.timer_value_start = 123;
-            spindle_sync.block_start = 2.33f;
-            spindle_sync.segments = 0;
-            spindle_sync.segment_id = stepper->exec_segment->id + 1; // force recalc
-        }
-        set_dir_outputs(stepper->dir_outbits);
-    }
-
-    if(stepper->step_outbits.value) {
-        set_step_outputs(stepper->step_outbits);
-        TimerEnable(PULSE_TIMER_BASE, TIMER_A);
-    }
-
-    if(spindle_sync.segment_id != stepper->exec_segment->id) {
-
-        spindle_sync.segment_id = stepper->exec_segment->id;
-
-        float dist = stepper->exec_segment->target_position - spindle_sync.prev_pos;
-
-        float epulses = dist * spindle_sync.dpp;
-
-        sys.pid_log.target[spindle_sync.segments] = stepper->exec_segment->target_position;
-
-        spindle_sync.segments++;
-
- //       float current_pos = (spindleGetData(true).angular_position - spindle_sync.block_start) * stepper->exec_block->programmed_rate;
-
-        spindle_sync.prev_pos = stepper->exec_segment->target_position;
-    }
-}
-#endif
-
 
 // Enable/disable limit pins interrupt
 static void limitsEnable (bool on, axes_signals_t homing_cycle)
@@ -622,14 +532,16 @@ static probe_state_t probeGetState (void)
     return state;
 }
 
+#if DRIVER_SPINDLE_ENABLE
+
 // Static spindle (off, on cw & on ccw)
 
-inline static void spindle_off ()
+inline static void spindle_off (void)
 {
     GPIOPinWrite(SPINDLE_ENABLE_PORT, SPINDLE_ENABLE_BIT, settings.spindle.invert.on ? SPINDLE_ENABLE_BIT : 0);
 }
 
-inline static void spindle_on ()
+inline static void spindle_on (void)
 {
     GPIOPinWrite(SPINDLE_ENABLE_PORT, SPINDLE_ENABLE_BIT, settings.spindle.invert.on ? 0 : SPINDLE_ENABLE_BIT);
 }
@@ -641,9 +553,12 @@ inline static void spindle_dir (bool ccw)
 
 
 // Start or stop spindle
-static void spindleSetState (spindle_state_t state, float rpm)
+static void spindleSetState (spindle_ptrs_t *spindle, spindle_state_t state, float rpm)
 {
-    if (!state.on)
+    UNUSED(rpm);
+    UNUSED(spindle);
+
+    if(!state.on)
         spindle_off();
     else {
         spindle_dir(state.ccw);
@@ -651,14 +566,16 @@ static void spindleSetState (spindle_state_t state, float rpm)
     }
 }
 
+#if DRIVER_SPINDLE_PWM_ENABLE
+
 // Variable spindle control functions
 
 // Sets spindle speed
 #if PWM_RAMPED
 
-static void spindle_set_speed (uint_fast16_t pwm_value)
+static void spindleSetSpeed (spindle_ptrs_t *spindle, uint_fast16_t pwm_value)
 {
-    if (pwm_value == spindle_pwm.off_value) {
+    if (pwm_value == pwm(spindle)->off_value) {
         pwm_ramp.pwm_target = 0;
         pwm_ramp.pwm_step = -SPINDLE_RAMP_STEP_INCR;
         pwm_ramp.delay_ms = 0;
@@ -669,10 +586,10 @@ static void spindle_set_speed (uint_fast16_t pwm_value)
         if(!pwmEnabled) {
             spindle_on();
             pwmEnabled = true;
-            pwm_ramp.pwm_current = spindle_pwm.min_value;
+            pwm_ramp.pwm_current = pwm(spindle)->min_value;
             pwm_ramp.delay_ms = 0;
-            TimerMatchSet(SPINDLE_PWM_TIMER_BASE, TIMER_A, spindle_pwm.period - pwm_ramp.pwm_current + 15);
-            TimerLoadSet(SPINDLE_PWM_TIMER_BASE, TIMER_A, spindle_pwm.period);
+            TimerMatchSet(SPINDLE_PWM_TIMER_BASE, TIMER_A, pwm(spindle)->period - pwm_ramp.pwm_current + 15);
+            TimerLoadSet(SPINDLE_PWM_TIMER_BASE, TIMER_A, pwm(spindle)->period);
             TimerEnable(SPINDLE_PWM_TIMER_BASE, TIMER_A); // Ensure PWM output is enabled.
 //            TimerControlLevel(SPINDLE_PWM_TIMER_BASE, TIMER_A, false);
         }
@@ -686,81 +603,72 @@ static void spindle_set_speed (uint_fast16_t pwm_value)
 
 #else
 
-static void spindle_set_speed (uint_fast16_t pwm_value)
+static void spindleSetSpeed (spindle_ptrs_t *spindle, uint_fast16_t pwm_value)
 {
-    if (pwm_value == spindle_pwm.off_value) {
+    if (pwm_value == pwm(spindle)->off_value) {
         pwmEnabled = false;
-        if(settings.spindle.flags.enable_rpm_controlled)
-            spindle_off();
-        if(spindle_pwm.always_on) {
-            TimerPrescaleMatchSet(SPINDLE_PWM_TIMER_BASE, TIMER_A, spindle_pwm.off_value >> 16);
-            TimerMatchSet(SPINDLE_PWM_TIMER_BASE, TIMER_A, spindle_pwm.off_value & 0xFFFF);
-            TimerControlLevel(SPINDLE_PWM_TIMER_BASE, TIMER_A, !settings.spindle.invert.pwm);
+        if(pwm(spindle)->settings->flags.enable_rpm_controlled) {
+            if(pwm(spindle)->cloned)
+                spindle_dir(false);
+            else
+                spindle_off();
+        }
+        if(pwm(spindle)->always_on) {
+            TimerPrescaleMatchSet(SPINDLE_PWM_TIMER_BASE, TIMER_A, pwm(spindle)->off_value >> 16);
+            TimerMatchSet(SPINDLE_PWM_TIMER_BASE, TIMER_A, pwm(spindle)->off_value & 0xFFFF);
+            TimerControlLevel(SPINDLE_PWM_TIMER_BASE, TIMER_A, !pwm(spindle)->settings->invert.pwm);
             TimerEnable(SPINDLE_PWM_TIMER_BASE, TIMER_A); // Ensure PWM output is enabled.
         } else {
-            uint_fast16_t pwm = spindle_pwm.period + 20000;
+            uint_fast16_t pwm = pwm(spindle)->period + 20000;
             TimerPrescaleSet(SPINDLE_PWM_TIMER_BASE, TIMER_A, pwm >> 16);
             TimerLoadSet(SPINDLE_PWM_TIMER_BASE, TIMER_A, pwm & 0xFFFF);
             if(!pwmEnabled)
                 TimerEnable(SPINDLE_PWM_TIMER_BASE, TIMER_A);                                   // Ensure PWM output is enabled to
-            TimerControlLevel(SPINDLE_PWM_TIMER_BASE, TIMER_A, !settings.spindle.invert.pwm);   // ensure correct output level.
+            TimerControlLevel(SPINDLE_PWM_TIMER_BASE, TIMER_A, !pwm(spindle)->settings->invert.pwm);   // ensure correct output level.
             TimerDisable(SPINDLE_PWM_TIMER_BASE, TIMER_A);                                      // Disable PWM.
         }
      } else {
         TimerPrescaleMatchSet(SPINDLE_PWM_TIMER_BASE, TIMER_A, pwm_value >> 16);
         TimerMatchSet(SPINDLE_PWM_TIMER_BASE, TIMER_A, pwm_value & 0xFFFF);
         if(!pwmEnabled) {
-            spindle_on();
+            if(pwm(spindle)->cloned)
+                spindle_dir(true);
+            else
+                spindle_on();
             pwmEnabled = true;
-            TimerPrescaleSet(SPINDLE_PWM_TIMER_BASE, TIMER_A, spindle_pwm.period >> 16);
-            TimerLoadSet(SPINDLE_PWM_TIMER_BASE, TIMER_A, spindle_pwm.period & 0xFFFF);
-            TimerControlLevel(SPINDLE_PWM_TIMER_BASE, TIMER_A, !settings.spindle.invert.pwm);
+            TimerPrescaleSet(SPINDLE_PWM_TIMER_BASE, TIMER_A, pwm(spindle)->period >> 16);
+            TimerLoadSet(SPINDLE_PWM_TIMER_BASE, TIMER_A, pwm(spindle)->period & 0xFFFF);
+            TimerControlLevel(SPINDLE_PWM_TIMER_BASE, TIMER_A, !pwm(spindle)->settings->invert.pwm);
             TimerEnable(SPINDLE_PWM_TIMER_BASE, TIMER_A); // Ensure PWM output is enabled.
         }
     }
 }
 
-#endif
+#endif // !PWM_RAMPED
 
-static uint_fast16_t spindleGetPWM (float rpm)
+static uint_fast16_t spindleGetPWM (spindle_ptrs_t *spindle, float rpm)
 {
-    return spindle_compute_pwm_value(&spindle_pwm, rpm, false);
+    return pwm(spindle)->compute_value(pwm(spindle), rpm, false);
 }
 
 // Start or stop spindle
-static void spindleSetStateVariable (spindle_state_t state, float rpm)
+static void spindleSetStateVariable (spindle_ptrs_t *spindle, spindle_state_t state, float rpm)
 {
 #ifdef SPINDLE_DIRECTION_PIN
-    if (state.on)
+    if (state.on || pwm(spindle)->cloned)
         spindle_dir(state.ccw);
 #endif
     if(!settings.spindle.flags.enable_rpm_controlled) {
-        if (state.on)
+        if(state.on)
             spindle_on();
         else
             spindle_off();
     }
 
-    spindle_set_speed(state.on ? spindle_compute_pwm_value(&spindle_pwm, rpm, false) : spindle_pwm.off_value);
+    spindleSetSpeed(spindle, state.on || (state.ccw && pwm(spindle)->cloned)
+                              ? pwm(spindle)->compute_value(pwm(spindle), rpm, false)
+                              : pwm(spindle)->off_value);
 }
-
-#if SPINDLE_SYNC_ENABLE
-static spindle_data_t spindleGetData (spindle_data_request_t request)
-{
-    static spindle_data_t spindle_data;
-
-    spindle_data.rpm = GPIOPinRead(SPINDLE_ENABLE_PORT, SPINDLE_ENABLE_BIT) ? 300.0f : 0.0f;
-    spindle_data.angular_position = 0.0f;
-    spindle_data.index_count++;
-
-    return spindle_data;
-}
-
-static void spindleDataReset (void)
-{
-}
-
-#endif
 
 bool spindleConfig (spindle_ptrs_t *spindle)
 {
@@ -769,40 +677,19 @@ bool spindleConfig (spindle_ptrs_t *spindle)
 
     spindle_pwm.offset = -1;
 
-    if((spindle->cap.variable = !settings.spindle.flags.pwm_disable && spindle_precompute_pwm_values(spindle, &spindle_pwm, SysCtlClockGet()))) {
+    if(spindle_precompute_pwm_values(spindle, &spindle_pwm, &settings.spindle, SysCtlClockGet())) {
         TimerPrescaleSet(SPINDLE_PWM_TIMER_BASE, TIMER_A, spindle_pwm.period >> 16);
         TimerLoadSet(SPINDLE_PWM_TIMER_BASE, TIMER_A, spindle_pwm.period & 0xFFFF);
         spindle->set_state = spindleSetStateVariable;
     } else {
         if(pwmEnabled)
-            spindle->set_state((spindle_state_t){0}, 0.0f);
+            spindle->set_state(spindle, (spindle_state_t){0}, 0.0f);
         spindle->set_state = spindleSetState;
     }
 
     spindle_update_caps(spindle, spindle->cap.variable ? &spindle_pwm : NULL);
 
     return true;
-}
-
-// Returns spindle state in a spindle_state_t variable
-static spindle_state_t spindleGetState (void)
-{
-    spindle_state_t state = {0};
-
-    state.on = GPIOPinRead(SPINDLE_ENABLE_PORT, SPINDLE_ENABLE_BIT) != 0;
-    state.ccw = GPIOPinRead(SPINDLE_DIRECTION_PORT, SPINDLE_DIRECTION_BIT) != 0;
-    state.value ^= settings.spindle.invert.mask;
-    if(pwmEnabled)
-        state.on |= pwmEnabled;
-    state.value ^= settings.spindle.invert.mask;
-#if PWM_RAMPED
-    state.at_speed = pwm_ramp.pwm_current == pwm_ramp.pwm_target;
-#endif
-#if SPINDLE_SYNC_ENABLE
-    state.at_speed = spindleGetData(SpindleData_RPM).rpm == (state.on ? 300.0f : 0.0f);
-#endif
-
-    return state;
 }
 
 #if PPI_ENABLE
@@ -814,9 +701,28 @@ static void spindlePulseOn (uint_fast16_t pulse_length)
     TimerEnable(PPI_ENABLE_TIMER_BASE, TIMER_A);
 }
 
+#endif // PPI_ENABLE
+
+#endif // DRIVER_SPINDLE_PWM_ENABLE
+
+// Returns spindle state in a spindle_state_t variable
+static spindle_state_t spindleGetState (spindle_ptrs_t *spindle)
+{
+    spindle_state_t state = {0};
+
+    state.on = GPIOPinRead(SPINDLE_ENABLE_PORT, SPINDLE_ENABLE_BIT) != 0;
+    state.ccw = GPIOPinRead(SPINDLE_DIRECTION_PORT, SPINDLE_DIRECTION_BIT) != 0;
+    state.value ^= settings.spindle.invert.mask;
+    if(pwmEnabled)
+        state.on |= pwmEnabled;
+#if PWM_RAMPED
+    state.at_speed = pwm_ramp.pwm_current == pwm_ramp.pwm_target;
 #endif
 
-// end spindle code
+    return state;
+}
+
+#endif // DRIVER_SPINDLE_ENABLE
 
 // Start/stop coolant (and mist if enabled)
 static void coolantSetState (coolant_state_t mode)
@@ -922,11 +828,13 @@ static void settings_changed (settings_t *settings, settings_changed_flags_t cha
 
     if(IOInitDone) {
 
+#if DRIVER_SPINDLE_PWM_ENABLE
         if(changed.spindle) {
             spindleConfig(spindle_get_hal(spindle_id, SpindleHAL_Configured));
             if(spindle_id == spindle_get_default())
                 spindle_select(spindle_id);
         }
+#endif
 
         pulse_length = (uint32_t)(10.0f * (settings->steppers.pulse_microseconds - STEP_PULSE_LATENCY)) - 1;
 
@@ -1285,6 +1193,8 @@ static bool driver_setup (settings_t *settings)
         TimerIntEnable(DEBOUNCE_TIMER_BASE, TIMER_TIMA_TIMEOUT);
     }
 
+#if DRIVER_SPINDLE_PWM_ENABLE
+
    /******************
     *  Spindle init  *
     ******************/
@@ -1313,6 +1223,8 @@ static bool driver_setup (settings_t *settings)
     };
 
     hal.periph_port.register_pin(&pwm);
+
+#endif // DRIVER_SPINDLE_PWM_ENABLE
 
 #if I2C_STROBE_ENABLE
 
@@ -1396,7 +1308,7 @@ bool driver_init (void)
 
     hal.f_step_timer = SysCtlPIOSCCalibrate(SYSCTL_PIOSC_CAL_AUTO);
     hal.info = "TM4C123HP6PM";
-    hal.driver_version = "230907";
+    hal.driver_version = "231209";
 #ifdef BOARD_NAME
     hal.board = BOARD_NAME;
 #endif
@@ -1421,11 +1333,6 @@ bool driver_init (void)
     hal.probe.get_state = probeGetState;
     hal.probe.configure = probeConfigure;
 
-#if SPINDLE_SYNC_ENABLE
-    hal.spindle_data.get_data = spindleGetData;
-    hal.spindle_data.reset_data = spindleDataReset;
-#endif
-
     hal.control.get_state = systemGetState;
 
     hal.irq_enable = enable_irq;
@@ -1449,43 +1356,61 @@ bool driver_init (void)
 
     eeprom_init();
 
-#ifdef _ATC_H_
-    hal.tool_select = atc_tool_selected;
-    hal.tool_change = atc_tool_change;
-#endif
+#if DRIVER_SPINDLE_ENABLE
+
+ #if DRIVER_SPINDLE_PWM_ENABLE
 
     static const spindle_ptrs_t spindle = {
- #ifdef SPINDLE_DIRECTION_PIN
-        .cap.direction = On,
- #endif
- #if PWM_RAMPED || SPINDLE_SYNC_ENABLE
-        .cap_at_speed = On;
- #endif
-        .cap.laser = On,
-        .cap.variable = On,
-        .cap.pwm_invert = On,
+        .type = SpindleType_PWM,
         .config = spindleConfig,
+        .set_state = spindleSetStateVariable,
+        .get_state = spindleGetState,
         .get_pwm = spindleGetPWM,
-        .update_pwm = spindle_set_speed,
- #if PPI_ENABLE
-        .spindle.pulse_on = spindlePulseOn;
- #endif
-        .set_state = spindleSetState,
-        .get_state = spindleGetState
+        .update_pwm = spindleSetSpeed,
+  #if PPI_ENABLE
+        .pulse_on = spindlePulseOn,
+  #endif
+        .cap = {
+            .gpio_controlled = On,
+            .variable = On,
+            .laser = On,
+            .pwm_invert = On,
+  #if DRIVER_SPINDLE_DIR_ENABLE
+            .direction = On,
+  #endif
+  #if PWM_RAMPED
+            .at_speed = On
+  #endif
+        }
     };
 
-    spindle_id = spindle_register(&spindle, "PWM");
+ #else
 
-  // driver capabilities, used for announcing and negotiating (with Grbl) driver functionality
+    static const spindle_ptrs_t spindle = {
+        .type = SpindleType_Basic,
+        .set_state = spindleSetState,
+        .get_state = spindleGetState,
+        .cap = {
+            .gpio_controlled = On,
+  #if DRIVER_SPINDLE_DIR_ENABLE
+            .direction = On
+  #endif
+        }
+    };
+
+ #endif
+
+    spindle_id = spindle_register(&spindle, DRIVER_SPINDLE_NAME);
+
+#endif // DRIVER_SPINDLE_ENABLE
+
+  // driver capabilities, used for announcing and negotiating driver functionality
 
 #ifdef SAFETY_DOOR_PIN
     hal.signals_cap.safety_door_ajar = On;
 #endif
     hal.limits_cap = get_limits_cap();
     hal.home_cap = get_home_cap();
-#if SPINDLE_SYNC_ENABLE
-    hal.driver_cap.spindle_sync = On;
-#endif
     hal.driver_cap.mist_control = On;
     hal.driver_cap.software_debounce = On;
     hal.driver_cap.step_pulse_delay = On;

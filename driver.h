@@ -153,9 +153,7 @@ typedef struct {
     } pins;
 } pin_group_pins_t;
 
-#ifdef HAS_IOPORTS
 void ioports_init(pin_group_pins_t *aux_inputs, pin_group_pins_t *aux_outputs);
 void ioports_event (input_signal_t *input);
-#endif
 
 #endif // __DRIVER_H__

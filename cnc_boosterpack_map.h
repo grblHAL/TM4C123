@@ -23,8 +23,6 @@
 
 #define BOARD_NAME "CNC BoosterPack"
 
-#define HAS_IOPORTS
-
 #if TRINAMIC_ENABLE
 #ifdef TRINAMIC_MIXED_DRIVERS
 #undef TRINAMIC_MIXED_DRIVERS
@@ -132,23 +130,25 @@
 #define COOLANT_MIST_PORT       GPIO_PORTD_BASE
 #define COOLANT_MIST_PIN        7
 
+#define AUXINPUT7_PORT          GPIO_PORTC_BASE
+#define AUXINPUT7_PIN           4
+
 // Define user-control CONTROLs (cycle start, reset, feed hold) input pins.
 #if CNC_BOOSTERPACK_SHORTS
     #define CONTROL_PORT        GPIO_PORTC_BASE
     #define RESET_PIN           7
     #define FEED_HOLD_PIN       5
     #define CYCLE_START_PIN     6
-#if SAFETY_DOOR_ENABLE
-    #define SAFETY_DOOR_PIN     4
-#endif
 #else
 #define CONTROL_PORT            GPIO_PORTC_BASE
 #define RESET_PIN               7
 #define FEED_HOLD_PIN           6
 #define CYCLE_START_PIN         5
-#if SAFETY_DOOR_ENABLE
-#define SAFETY_DOOR_PIN         4
 #endif
+
+#if SAFETY_DOOR_ENABLE
+#define SAFETY_DOOR_PORT        AUXINPUT7_PORT
+#define SAFETY_DOOR_PIN         AUXINPUT7_PIN
 #endif
 
 // Define probe switch input pin.
@@ -225,6 +225,11 @@
 #else
 #define AUXINPUT6_PORT          AUXIO6_PORT
 #define AUXINPUT6_PIN           AUXIO6_PIN
+#endif
+
+#if MOTOR_FAULT_ENABLE && defined(AUXINPUT2_PORT)
+#define MOTOR_FAULT_PORT        AUXINPUT2_PORT
+#define MOTOR_FAULT_PIN         AUXINPUT2_PIN
 #endif
 
 /*EOF*/

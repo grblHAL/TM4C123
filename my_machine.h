@@ -26,12 +26,23 @@
 // Configuration
 // Uncomment to enable.
 //#define SAFETY_DOOR_ENABLE      1 // Enable safety door input.
-#define KEYPAD_ENABLE           1 // Set to 1 for I2C keypad, 2 for other input such as serial data
+//#define KEYPAD_ENABLE           1 // Set to 1 for I2C keypad, 2 for other input such as serial data
 //#define TRINAMIC_ENABLE      2130 // Trinamic TMC2130 stepper driver support. NOTE: work in progress.
 //#define TRINAMIC_ENABLE      5160 // Trinamic TMC5160 stepper driver support. NOTE: work in progress.
 //#define TRINAMIC_I2C            0 // Trinamic I2C - SPI bridge interface.
 //#define PWM_RAMPED              1 // Ramped spindle PWM.
 //#define PPI_ENABLE              1 // Laser PPI (Pulses Per Inch) option.
+// Optional control signals:
+// These will be assigned to aux input pins. Use the $pins command to check which pins are assigned.
+// NOTE: If not enough pins are available assignment will silently fail.
+//#define SAFETY_DOOR_ENABLE      1
+//#define MOTOR_FAULT_ENABLE      1
+//#define MOTOR_WARNING_ENABLE    1
+//#define PROBE_DISCONNECT_ENABLE 1
+//#define STOP_DISABLE_ENABLE     1
+//#define BLOCK_DELETE_ENABLE     1
+//#define SINGLE_BLOCK_ENABLE     1
+//#define LIMITS_OVERRIDE_ENABLE  1
 
 #ifdef BOARD_CNC_BOOSTERPACK
 #define CNC_BOOSTERPACK_SHORTS  1 // Shorts added to BoosterPack for some signals (for faster and simpler driver)

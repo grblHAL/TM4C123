@@ -5,7 +5,7 @@
 
   Part of grblHAL
 
-  Copyright (c) 2016-2023 Terje Io
+  Copyright (c) 2016-2024 Terje Io
 
   Some parts
    Copyright (c) 2011-2015 Sungeun K. Jeon
@@ -97,7 +97,7 @@ typedef struct {
 } irq_handler_t;
 
 static periph_signal_t *periph_pins = NULL;
-#if AUX_CONTROLS_ENABLED
+#if SAFETY_DOOR_ENABLE
 static input_signal_t *door_pin;
 #endif
 
@@ -533,6 +533,9 @@ inline static control_signals_t systemGetState (void)
     signals.motor_warning = GPIOPinRead(MOTOR_WARNING_PORT, 1 << MOTOR_WARNING_PIN);
   #endif
 
+    if(settings.control_invert.value)
+        signals.value ^= settings.control_invert.value;
+
   #if AUX_CONTROLS_SCAN
     uint_fast8_t i;
     for(i = AUX_CONTROLS_SCAN; i < AuxCtrl_NumEntries; i++) {
@@ -544,10 +547,12 @@ inline static control_signals_t systemGetState (void)
     }
   #endif
 
-#endif // AUX_CONTROLS_ENABLED
+#else
 
     if(settings.control_invert.value)
         signals.value ^= settings.control_invert.value;
+
+#endif // AUX_CONTROLS_ENABLED
 
     return signals;
 }
@@ -557,40 +562,79 @@ inline static control_signals_t systemGetState (void)
 static void aux_irq_handler (uint8_t port, bool state)
 {
     uint_fast8_t i;
-    control_signals_t signals = systemGetState();
+    control_signals_t signals = {0};
 
     for(i = 0; i < AuxCtrl_NumEntries; i++) {
         if(aux_ctrl[i].port == port) {
-            if(!aux_ctrl[i].debouncing) {
-                signals.mask |= aux_ctrl[i].cap.mask;
-                if(i == AuxCtrl_SafetyDoor && (aux_ctrl[i].debouncing = enqueue_debounce(door_pin))) {
-                    TimerLoadSet(DEBOUNCE_TIMER_BASE, TIMER_A, 32000);  // 32ms
-                    TimerEnable(DEBOUNCE_TIMER_BASE, TIMER_A);
+            if(aux_ctrl[i].port == port) {
+                if(!aux_ctrl[i].debouncing) {
+#if SAFETY_DOOR_ENABLE
+                    if(i == AuxCtrl_SafetyDoor) {
+                        if((aux_ctrl[i].debouncing = enqueue_debounce(door_pin))) {
+                            TimerLoadSet(DEBOUNCE_TIMER_BASE, TIMER_A, 32000);  // 32ms
+                            TimerEnable(DEBOUNCE_TIMER_BASE, TIMER_A);
+                            break;
+                        }
+                    }
+#endif
+                    signals.mask |= aux_ctrl[i].cap.mask;
+                    if(aux_ctrl[i].irq_mode == IRQ_Mode_Change)
+                        signals.deasserted = hal.port.wait_on_input(Port_Digital, aux_ctrl[i].port, WaitMode_Immediate, 0.0f) == 0;
                 }
+                break;
             }
         }
     }
 
-    if(signals.mask)
+    if(signals.mask) {
+        if(!signals.deasserted)
+            signals.mask |= systemGetState().mask;
         hal.control.interrupt_callback(signals);
+    }
 }
 
-bool aux_claim (xbar_t *properties, uint8_t port, void *data)
+static bool aux_attach (xbar_t *properties, aux_ctrl_t *aux_ctrl)
 {
+    bool ok;
+    uint_fast8_t i = sizeof(inputpin) / sizeof(input_signal_t);
+
+    do {
+        i--;
+        if((ok = (void *)inputpin[i].port == properties->port && inputpin[i].pin == properties->pin)) {
+            inputpin[i].aux_ctrl = aux_ctrl;
+            break;
+        }
+    } while(i);
+
+    return ok;
+}
+
+static bool aux_claim (xbar_t *properties, uint8_t port, void *data)
+{
+    bool ok;
+
     ((aux_ctrl_t *)data)->port = port;
 
-    return ioport_claim(Port_Digital, Port_Input, &((aux_ctrl_t *)data)->port, xbar_fn_to_pinname(((aux_ctrl_t *)data)->function));
+    if((ok = ioport_claim(Port_Digital, Port_Input, &((aux_ctrl_t *)data)->port, xbar_fn_to_pinname(((aux_ctrl_t *)data)->function))))
+        aux_attach(properties, (aux_ctrl_t *)data);
+
+    return ok;
 }
 
-static bool aux_claim_explicit (aux_ctrl_t *aux)
+#if AUX_CONTROLS_XMAP
+
+static bool aux_claim_explicit (aux_ctrl_t *aux_ctrl)
 {
-    if((aux->enabled = aux->port != 0xFF && ioport_claim(Port_Digital, Port_Input, &aux->port, xbar_fn_to_pinname(aux->function))))
-        hal.signals_cap.mask |= aux->cap.mask;
-    else
-        aux->port = 0xFF;
+    if((aux_ctrl->enabled = aux_ctrl->port != 0xFF && ioport_claim(Port_Digital, Port_Input, &aux_ctrl->port, xbar_fn_to_pinname(aux_ctrl->function)))) {
+        hal.signals_cap.mask |= aux_ctrl->cap.mask;
+        aux_attach(hal.port.get_pin_info(Port_Digital, Port_Input, aux_ctrl->port), aux_ctrl);
+    } else
+        aux_ctrl->port = 0xFF;
 
-    return aux->enabled;
+    return aux_ctrl->enabled;
 }
+
+#endif
 
 #endif // AUX_CONTROLS_ENABLED
 
@@ -1063,7 +1107,10 @@ static void settings_changed (settings_t *settings, settings_changed_flags_t cha
 #if AUX_CONTROLS_ENABLED
         for(i = 0; i < AuxCtrl_NumEntries; i++) {
             if(aux_ctrl[i].enabled && aux_ctrl[i].irq_mode != IRQ_Mode_None) {
-                aux_ctrl[i].irq_mode = door_pin->irq_mode = (settings->control_invert.mask & aux_ctrl[i].cap.mask) ? IRQ_Mode_Falling : IRQ_Mode_Rising;
+                if(aux_ctrl[i].irq_mode & (IRQ_Mode_Falling|IRQ_Mode_Rising))
+                    aux_ctrl[i].irq_mode = (settings->control_invert.mask & aux_ctrl[i].cap.mask) ? IRQ_Mode_Falling : IRQ_Mode_Rising;
+                if(i == AuxCtrl_SafetyDoor)
+                    door_pin->irq_mode = aux_ctrl[i].irq_mode;
                 hal.port.register_interrupt_handler(aux_ctrl[i].port, aux_ctrl[i].irq_mode, aux_irq_handler);
             }
         }
@@ -1407,7 +1454,7 @@ bool driver_init (void)
 
     hal.f_step_timer = SysCtlPIOSCCalibrate(SYSCTL_PIOSC_CAL_AUTO);
     hal.info = "TM4C123HP6PM";
-    hal.driver_version = "231229";
+    hal.driver_version = "240111";
 #ifdef BOARD_NAME
     hal.board = BOARD_NAME;
 #endif
@@ -1544,7 +1591,7 @@ bool driver_init (void)
 #endif
 #if MOTOR_WARNING_ENABLE
             if(input->port == MOTOR_WARNING_PORT && input->pin == MOTOR_WARNING_PIN && input->cap.irq_mode != IRQ_Mode_None)
-                aux_control_port[AuxCtrl_MotorWarning] = aux_inputs.n_pins - 1;
+                aux_ctrl[AuxCtrl_MotorWarning].port = aux_inputs.n_pins - 1;
 #endif
         } else if(input->group == PinGroup_Limit) {
             if(limit_inputs.pins.inputs == NULL)
@@ -1678,6 +1725,11 @@ void software_debounce_isr (void)
 
         if(!!GPIOPinRead(signal->port, signal->bit) == (signal->irq_mode == IRQ_Mode_Falling ? 0 : 1))
             grp |= signal->group;
+
+#if SAFETY_DOOR_ENABLE
+        if(signal == door_pin)
+            aux_ctrl[AuxCtrl_SafetyDoor].debouncing = false;
+#endif
     }
 
     if(grp & PinGroup_Limit) {
@@ -1687,13 +1739,12 @@ void software_debounce_isr (void)
             hal.limits.interrupt_callback(state);
     }
 
+#if SAFETY_DOOR_ENABLE
+    if(grp & (PinGroup_Control|PinGroup_AuxInput))
+#else
     if(grp & PinGroup_Control)
-        hal.control.interrupt_callback(systemGetState());
-
-#if AUX_CONTROLS_ENABLED
-    if(grp & PinGroup_AuxInput)
-        aux_ctrl[AuxCtrl_SafetyDoor].debouncing = false;
 #endif
+        hal.control.interrupt_callback(systemGetState());
 }
 
 static /* inline __attribute__((always_inline))*/ IRQHandler (input_signal_t *input, uint16_t iflags)

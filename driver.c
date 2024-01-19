@@ -1003,29 +1003,29 @@ static void settings_changed (settings_t *settings, settings_changed_flags_t cha
             input = &inputpin[--i];
             input->bit = 1U << input->pin;
             if(input->group != PinGroup_AuxInput)
-                input->irq_mode = IRQ_Mode_None;
+                input->mode.irq_mode = IRQ_Mode_None;
             pullup = input->group == PinGroup_AuxInput;
 
             switch(input->id) {
 
                 case Input_Reset:
                     pullup = !settings->control_disable_pullup.reset;
-                    input->irq_mode = control_fei.reset ? IRQ_Mode_Falling : IRQ_Mode_Rising;
+                    input->mode.irq_mode = control_fei.reset ? IRQ_Mode_Falling : IRQ_Mode_Rising;
                     break;
 
                 case Input_FeedHold:
                     pullup = !settings->control_disable_pullup.feed_hold;
-                    input->irq_mode = control_fei.reset ? IRQ_Mode_Falling : IRQ_Mode_Rising;
+                    input->mode.irq_mode = control_fei.reset ? IRQ_Mode_Falling : IRQ_Mode_Rising;
                     break;
 
                 case Input_CycleStart:
                     pullup = !settings->control_disable_pullup.cycle_start;
-                    input->irq_mode = control_fei.feed_hold ? IRQ_Mode_Falling : IRQ_Mode_Rising;
+                    input->mode.irq_mode = control_fei.feed_hold ? IRQ_Mode_Falling : IRQ_Mode_Rising;
                     break;
 
                 case Input_SafetyDoor:
                     pullup = !settings->control_disable_pullup.safety_door_ajar;
-                    input->irq_mode = control_fei.cycle_start ? IRQ_Mode_Falling : IRQ_Mode_Rising;
+                    input->mode.irq_mode = control_fei.cycle_start ? IRQ_Mode_Falling : IRQ_Mode_Rising;
                     break;
 
                 case Input_Probe:
@@ -1034,42 +1034,42 @@ static void settings_changed (settings_t *settings, settings_changed_flags_t cha
 
                 case Input_LimitX:
                     pullup = !settings->limits.disable_pullup.x;
-                    input->irq_mode = limit_fei.x ? IRQ_Mode_Falling : IRQ_Mode_Rising;
+                    input->mode.irq_mode = limit_fei.x ? IRQ_Mode_Falling : IRQ_Mode_Rising;
                     break;
 
                 case Input_LimitY:
                     pullup = !settings->limits.disable_pullup.y;
-                    input->irq_mode = limit_fei.y ? IRQ_Mode_Falling : IRQ_Mode_Rising;
+                    input->mode.irq_mode = limit_fei.y ? IRQ_Mode_Falling : IRQ_Mode_Rising;
                     break;
 
                 case Input_LimitZ:
                     pullup = !settings->limits.disable_pullup.z;
-                    input->irq_mode = limit_fei.z ? IRQ_Mode_Falling : IRQ_Mode_Rising;
+                    input->mode.irq_mode = limit_fei.z ? IRQ_Mode_Falling : IRQ_Mode_Rising;
                     break;
 
                 case Input_LimitA:
                     pullup = !settings->limits.disable_pullup.a;
-                    input->irq_mode = limit_fei.a ? IRQ_Mode_Falling : IRQ_Mode_Rising;
+                    input->mode.irq_mode = limit_fei.a ? IRQ_Mode_Falling : IRQ_Mode_Rising;
                     break;
 
                 case Input_LimitB:
                     pullup = !settings->limits.disable_pullup.b;
-                    input->irq_mode = limit_fei.b ? IRQ_Mode_Falling : IRQ_Mode_Rising;
+                    input->mode.irq_mode = limit_fei.b ? IRQ_Mode_Falling : IRQ_Mode_Rising;
                     break;
 
                 case Input_LimitC:
                     pullup = !settings->limits.disable_pullup.c;
-                    input->irq_mode = limit_fei.c ? IRQ_Mode_Falling : IRQ_Mode_Rising;
+                    input->mode.irq_mode = limit_fei.c ? IRQ_Mode_Falling : IRQ_Mode_Rising;
                     break;
 
                 case Input_ModeSelect:
                     pullup = true;
-                    input->irq_mode = IRQ_Mode_Change;
+                    input->mode.irq_mode = IRQ_Mode_Change;
                     break;
 
                 case Input_KeypadStrobe:
                     pullup = true;
-                    input->irq_mode = IRQ_Mode_Change;
+                    input->mode.irq_mode = IRQ_Mode_Change;
                     break;
             }
 
@@ -1083,17 +1083,17 @@ static void settings_changed (settings_t *settings, settings_changed_flags_t cha
             GPIOPadConfigSet(input->port, input->bit, GPIO_STRENGTH_2MA, pullup ? GPIO_PIN_TYPE_STD_WPU : GPIO_PIN_TYPE_STD_WPD);
             GPIOIntClear(input->port, input->bit);     // Clear any pending interrupt
 
-            if(input->irq_mode != IRQ_Mode_None || input->group == PinGroup_AuxInput) {
+            if(input->mode.irq_mode != IRQ_Mode_None || input->group == PinGroup_AuxInput) {
 
                 if((handler = get_handler(input->port)))
                     memcpy(&handler->pins[handler->count++], input, sizeof(input_signal_t));
 
                 if(input->group != PinGroup_AuxInput) {
-                    GPIOIntTypeSet(input->port, input->bit, input->irq_mode == IRQ_Mode_Falling ? GPIO_FALLING_EDGE : (input->irq_mode == IRQ_Mode_Change ? GPIO_BOTH_EDGES : GPIO_RISING_EDGE));
+                    GPIOIntTypeSet(input->port, input->bit, input->mode.irq_mode == IRQ_Mode_Falling ? GPIO_FALLING_EDGE : (input->mode.irq_mode == IRQ_Mode_Change ? GPIO_BOTH_EDGES : GPIO_RISING_EDGE));
                     GPIOIntEnable(input->port, input->bit);    // Enable pin change interrupt for control pins
                 }
-                if(input->irq_mode != IRQ_Mode_Change)
-                    input->active = input->active ^ (input->irq_mode == IRQ_Mode_Falling ? 0 : 1);
+                if(input->mode.irq_mode != IRQ_Mode_Change)
+                    input->active = input->active ^ (input->mode.irq_mode == IRQ_Mode_Falling ? 0 : 1);
             }
 
         } while(i);
@@ -1110,7 +1110,7 @@ static void settings_changed (settings_t *settings, settings_changed_flags_t cha
                 if(aux_ctrl[i].irq_mode & (IRQ_Mode_Falling|IRQ_Mode_Rising))
                     aux_ctrl[i].irq_mode = (settings->control_invert.mask & aux_ctrl[i].cap.mask) ? IRQ_Mode_Falling : IRQ_Mode_Rising;
                 if(i == AuxCtrl_SafetyDoor)
-                    door_pin->irq_mode = aux_ctrl[i].irq_mode;
+                    door_pin->mode.irq_mode = aux_ctrl[i].irq_mode;
                 hal.port.register_interrupt_handler(aux_ctrl[i].port, aux_ctrl[i].irq_mode, aux_irq_handler);
             }
         }
@@ -1454,7 +1454,7 @@ bool driver_init (void)
 
     hal.f_step_timer = SysCtlPIOSCCalibrate(SYSCTL_PIOSC_CAL_AUTO);
     hal.info = "TM4C123HP6PM";
-    hal.driver_version = "240111";
+    hal.driver_version = "240119";
 #ifdef BOARD_NAME
     hal.board = BOARD_NAME;
 #endif
@@ -1572,7 +1572,7 @@ bool driver_init (void)
 
     for(i = 0 ; i < sizeof(inputpin) / sizeof(input_signal_t); i++) {
         input = &inputpin[i];
-
+        input->mode.input = input->cap.input = On;
         if(input->group == PinGroup_AuxInput) {
             if(aux_inputs.pins.inputs == NULL)
                 aux_inputs.pins.inputs = input;
@@ -1603,7 +1603,7 @@ bool driver_init (void)
     output_signal_t *output;
     for(i = 0 ; i < sizeof(outputpin) / sizeof(output_signal_t); i++) {
         output = &outputpin[i];
-
+        output->mode.output = On;
         if(output->group == PinGroup_AuxOutput) {
             if(aux_outputs.pins.outputs == NULL)
                 aux_outputs.pins.outputs = output;
@@ -1634,7 +1634,7 @@ bool driver_init (void)
 #if AUX_CONTROLS_ENABLED
     for(i = AuxCtrl_ProbeDisconnect; i < AuxCtrl_NumEntries; i++) {
         if(aux_ctrl[i].enabled) {
-            if((aux_ctrl[i].enabled = ioports_enumerate(Port_Digital, Port_Input, (pin_mode_t){ .irq_mode = aux_ctrl[i].irq_mode }, true, aux_claim, (void *)&aux_ctrl[i])))
+            if((aux_ctrl[i].enabled = ioports_enumerate(Port_Digital, Port_Input, (pin_cap_t){ .irq_mode = aux_ctrl[i].irq_mode, .claimable = On }, aux_claim, (void *)&aux_ctrl[i])))
                 hal.signals_cap.mask |= aux_ctrl[i].cap.mask;
         }
     }
@@ -1723,7 +1723,7 @@ void software_debounce_isr (void)
         GPIOIntClear(signal->port, signal->bit);
         GPIOIntEnable(signal->port, signal->bit);
 
-        if(!!GPIOPinRead(signal->port, signal->bit) == (signal->irq_mode == IRQ_Mode_Falling ? 0 : 1))
+        if(!!GPIOPinRead(signal->port, signal->bit) == (signal->mode.irq_mode == IRQ_Mode_Falling ? 0 : 1))
             grp |= signal->group;
 
 #if SAFETY_DOOR_ENABLE

@@ -918,17 +918,17 @@ static void disable_irq (void)
 
 #if  MPG_MODE == 1
 
-static void mpg_select (sys_state_t state)
+static void mpg_select (void *data)
 {
     stream_mpg_enable(GPIOPinRead(MPG_MODE_PORT, MPG_MODE_BIT) == 0);
 
     GPIOIntEnable(MPG_MODE_PORT, MPG_MODE_BIT);
 }
 
-static void mpg_enable (sys_state_t state)
+static void mpg_enable (void *data)
 {
     if(sys.mpg_mode == (GPIOPinRead(MPG_MODE_PORT, MPG_MODE_BIT) == 0))
-        mpg_select(state);
+        mpg_select(data);
 
 #if I2C_STROBE_ENABLE
 //    BITBAND_PERI(I2C_STROBE_PORT->IE, I2C_STROBE_PIN) = 1;
@@ -1563,7 +1563,7 @@ bool driver_init (void)
     hal.driver_cap.probe_pull_up = On;
 #if  MPG_MODE == 1
     if(hal.driver_cap.mpg_mode = stream_mpg_register(serial2Init(115200), false, NULL))
-        protocol_enqueue_rt_command(mpg_enable);
+        protocol_enqueue_foreground_task(mpg_enable, NULL);
 #endif
 
     uint32_t i;
@@ -1763,7 +1763,7 @@ static /* inline __attribute__((always_inline))*/ IRQHandler (input_signal_t *in
 #if  MPG_MODE == 1
                 case PinGroup_MPG:
                     GPIOIntDisable(MPG_MODE_PORT, MPG_MODE_BIT);
-                    protocol_enqueue_rt_command(mpg_select);
+                    protocol_enqueue_foreground_task(mpg_select, NULL);
                     break;
 #endif
 

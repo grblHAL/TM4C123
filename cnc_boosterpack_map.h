@@ -5,20 +5,20 @@
 
   Part of grblHAL
 
-  Copyright (c) 2020-2022 Terje Io
+  Copyright (c) 2020-2024 Terje Io
 
-  Grbl is free software: you can redistribute it and/or modify
+  grblHAL is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 3 of the License, or
   (at your option) any later version.
 
-  Grbl is distributed in the hope that it will be useful,
+  grblHAL is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
 
   You should have received a copy of the GNU General Public License
-  along with Grbl.  If not, see <http://www.gnu.org/licenses/>.
+  along with grblHAL. If not, see <http://www.gnu.org/licenses/>.
 */
 
 #define BOARD_NAME "CNC BoosterPack"
@@ -151,10 +151,6 @@
 #define SAFETY_DOOR_PIN         AUXINPUT7_PIN
 #endif
 
-// Define probe switch input pin.
-#define PROBE_PORT              GPIO_PORTA_BASE
-#define PROBE_PIN               5
-
 /*
  * CNC Boosterpack GPIO assignments
  */
@@ -197,15 +193,8 @@
 #define AUXINPUT1_PIN           AUXIO1_PIN
 #endif
 
-#if MPG_MODE == 1
-#define MPG_MODE_PORT           AUXIO2_PORT
-#define MODE_GPIO               GPIO2_GPIO
-#define MODE_INT                GPIO2_INT
-#define MPG_MODE_PIN            AUXIO2_PIN
-#else
 #define AUXINPUT2_PORT          AUXIO2_PORT
 #define AUXINPUT2_PIN           AUXIO2_PIN
-#endif
 
 #ifndef AUXOUTPUT2_PORT
 #define AUXINPUT3_PORT          AUXIO3_PORT
@@ -215,16 +204,28 @@
 #ifndef SERIAL2_MOD
 #define AUXINPUT4_PORT          AUXIO4_PORT
 #define AUXINPUT4_PIN           AUXIO4_PIN
-#define AUXINPUT5_PORT          AUXIO5_PORT
-#define AUXINPUT5_PIN           AUXIO5_PIN
+//#define AUXINPUT5_PORT          AUXIO5_PORT
+//#define AUXINPUT5_PIN           AUXIO5_PIN
+#endif
+
+#define AUXINPUT5_PORT          GPIO_PORTA_BASE
+#define AUXINPUT5_PIN           5
+
+#define AUXINPUT6_PORT          AUXIO6_PORT
+#define AUXINPUT6_PIN           AUXIO6_PIN
+
+// Define probe switch input pin.
+#define PROBE_PORT              AUXINPUT5_PORT
+#define PROBE_PIN               AUXINPUT5_PIN
+
+#if MPG_MODE == 1
+#define MPG_MODE_PORT           AUXINPUT2_PORT
+#define MPG_MODE_PIN            AUXINPUT2_PIN
 #endif
 
 #if I2C_STROBE_ENABLE
-#define I2C_STROBE_PORT         AUXIO6_PORT
-#define I2C_STROBE_PIN          AUXIO6_PIN
-#else
-#define AUXINPUT6_PORT          AUXIO6_PORT
-#define AUXINPUT6_PIN           AUXIO6_PIN
+#define I2C_STROBE_PORT         AUXINPUT6_PORT
+#define I2C_STROBE_PIN          AUXINPUT6_PIN
 #endif
 
 #if MOTOR_FAULT_ENABLE && defined(AUXINPUT2_PORT)

@@ -26,7 +26,6 @@
 // Configuration
 // Uncomment to enable.
 //#define SAFETY_DOOR_ENABLE      1 // Enable safety door input.
-//#define KEYPAD_ENABLE           1 // Set to 1 for I2C keypad, 2 for other input such as serial data
 //#define TRINAMIC_ENABLE      2130 // Trinamic TMC2130 stepper driver support. NOTE: work in progress.
 //#define TRINAMIC_ENABLE      5160 // Trinamic TMC5160 stepper driver support. NOTE: work in progress.
 //#define TRINAMIC_I2C            0 // Trinamic I2C - SPI bridge interface.

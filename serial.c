@@ -1,12 +1,12 @@
 //
 // serial.c - (UART) port library for Tiva
 //
-// v1.6 / 2021-06-26 / Io Engineering / Terje
+// v1.7 / 2024-10-31 / Io Engineering / Terje
 //
 
 /*
 
-Copyright (c) 2017-2021, Terje Io
+Copyright (c) 2017-2024, Terje Io
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -180,7 +180,7 @@ const io_stream_t *serialInit (void)
 {
     static const io_stream_t stream = {
         .type = StreamType_Serial,
-        .state.connected = true,
+        .is_connected = stream_connected,
         .read = serialGetC,
         .write = serialWriteS,
         .write_char = serialPutC,

@@ -5,25 +5,26 @@
 
   Part of grblHAL
 
-  Copyright (c) 2017-2020 Terje Io
+  Copyright (c) 2017-2024 Terje Io
 
-  Grbl is free software: you can redistribute it and/or modify
+  grblHAL is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 3 of the License, or
   (at your option) any later version.
 
-  Grbl is distributed in the hope that it will be useful,
+  grblHAL is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
 
   You should have received a copy of the GNU General Public License
-  along with Grbl.  If not, see <http://www.gnu.org/licenses/>.
+  along with grblHAL. If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include <stdlib.h>
 
 #include "grbl/grbl.h"
+#include "grbl/crc.h"
 
 #include "tiva.h"
 #include "driver.h"
@@ -90,8 +91,13 @@ static nvs_transfer_result_t writeBlock (uint32_t destination, uint8_t *source, 
     } else
         EEPROMProgram((uint32_t *)source, destination + EEPROMOFFSET, size);
 
-    if(with_checksum)
-        putByte(destination + size, calc_checksum(source, size));
+    if(size > 0 && with_checksum) {
+        uint16_t checksum = calc_checksum(source, size);
+        putByte(destination, checksum & 0xFF);
+#if NVS_CRC_BYTES > 1
+        putByte(++destination, checksum >> 1);
+#endif
+    }
 
     return NVS_TransferResult_OK;
 }
@@ -116,7 +122,11 @@ static nvs_transfer_result_t readBlock (uint8_t *destination, uint32_t source, u
     } else
         EEPROMRead((uint32_t *)destination, source + EEPROMOFFSET, size);
 
-    return with_checksum ? (calc_checksum(destination, size) == getByte(source + size) ? NVS_TransferResult_OK : NVS_TransferResult_Failed) : NVS_TransferResult_OK;
+#if NVS_CRC_BYTES == 1
+    return !with_checksum || calc_checksum(destination, size) == getByte(source);
+#else
+    return !with_checksum || calc_checksum(destination, size) == (getByte(source) | (getByte(source + 1) << 8));
+#endif
 }
 
 void eeprom_init (void)

@@ -125,6 +125,7 @@
 typedef struct {
     pin_function_t id;
     uint32_t port;
+    uint32_t user_port;
     uint8_t pin;
     uint16_t bit;
     pin_group_t group;

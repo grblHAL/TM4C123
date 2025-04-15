@@ -94,63 +94,6 @@
 #define Z_LIMIT_PIN             2
 #endif
 
-// Define driver spindle pins
-
-#if DRIVER_SPINDLE_PWM_ENABLE
-#define SPINDLEPPERIPH          SYSCTL_PERIPH_GPIOB
-#define SPINDLEPPORT            GPIO_PORTB_BASE
-#define SPINDLEPPIN             2
-#define SPINDLEPBIT             (1<<SPINDLEPPIN)
-#define SPINDLEPWM_MAP          GPIO_PB2_T3CCP0
-#else
-#define AUXOUTPUT3_PORT         GPIO_PORTB_BASE
-#define AUXOUTPUT3_PIN          2
-#endif
-
-#if DRIVER_SPINDLE_DIR_ENABLE
-#define SPINDLE_DIRECTION_PORT  GPIO_PORTE_BASE
-#define SPINDLE_DIRECTION_PIN   3
-#else
-#define AUXOUTPUT4_PORT         GPIO_PORTE_BASE
-#define AUXOUTPUT4_PIN          3
-#endif
-
-#if DRIVER_SPINDLE_ENABLE
-#define SPINDLE_ENABLE_PORT     GPIO_PORTE_BASE
-#define SPINDLE_ENABLE_PIN      2
-#else
-#define AUXOUTPUT5_PORT         GPIO_PORTE_BASE
-#define AUXOUTPUT5_PIN          2
-#endif
-
-// Define flood and mist coolant enable output pins.
-#define COOLANT_FLOOD_PORT      GPIO_PORTD_BASE
-#define COOLANT_FLOOD_PIN       6
-
-#define COOLANT_MIST_PORT       GPIO_PORTD_BASE
-#define COOLANT_MIST_PIN        7
-
-#define AUXINPUT7_PORT          GPIO_PORTC_BASE
-#define AUXINPUT7_PIN           4
-
-// Define user-control CONTROLs (cycle start, reset, feed hold) input pins.
-#if CNC_BOOSTERPACK_SHORTS
-    #define CONTROL_PORT        GPIO_PORTC_BASE
-    #define RESET_PIN           7
-    #define FEED_HOLD_PIN       5
-    #define CYCLE_START_PIN     6
-#else
-#define CONTROL_PORT            GPIO_PORTC_BASE
-#define RESET_PIN               7
-#define FEED_HOLD_PIN           6
-#define CYCLE_START_PIN         5
-#endif
-
-#if SAFETY_DOOR_ENABLE
-#define SAFETY_DOOR_PORT        AUXINPUT7_PORT
-#define SAFETY_DOOR_PIN         AUXINPUT7_PIN
-#endif
-
 /*
  * CNC Boosterpack GPIO assignments
  */
@@ -174,12 +117,66 @@
 
 #define AUXOUTPUT0_PORT         AUXIO0_PORT
 #define AUXOUTPUT0_PIN          AUXIO0_PIN
-
 #define AUXOUTPUT1_PORT         AUXIO1_PORT
 #define AUXOUTPUT1_PIN          AUXIO1_PIN
-
 #define AUXOUTPUT2_PORT         AUXIO3_PORT
 #define AUXOUTPUT2_PIN          AUXIO3_PIN
+#define AUXOUTPUT3_PORT         GPIO_PORTB_BASE // Spindle PWM
+#define AUXOUTPUT3_PIN          2
+#define AUXOUTPUT4_PORT         GPIO_PORTE_BASE // Spindle direction
+#define AUXOUTPUT4_PIN          3
+#define AUXOUTPUT5_PORT         GPIO_PORTE_BASE // Spindle enable
+#define AUXOUTPUT5_PIN          2
+#define AUXOUTPUT6_PORT         GPIO_PORTD_BASE // Coolant flood
+#define AUXOUTPUT6_PIN          6
+#define AUXOUTPUT7_PORT         GPIO_PORTD_BASE // Coolant mist
+#define AUXOUTPUT7_PIN          7
+
+// Define driver spindle pins
+#if DRIVER_SPINDLE_ENABLE & SPINDLE_ENA
+#define SPINDLE_ENABLE_PORT     AUXOUTPUT4_PORT
+#define SPINDLE_ENABLE_PIN      AUXOUTPUT4_PIN
+#endif
+#if DRIVER_SPINDLE_ENABLE & SPINDLE_PWM
+#define SPINDLE_PWM_PORT        AUXOUTPUT3_PORT
+#define SPINDLE_PWM_PIN         AUXOUTPUT3_PIN
+#define SPINDLE_PWM_MAP         GPIO_PB2_T3CCP0
+#endif
+#if DRIVER_SPINDLE_ENABLE & SPINDLE_DIR
+#define SPINDLE_DIRECTION_PORT  AUXOUTPUT3_PORT
+#define SPINDLE_DIRECTION_PIN   AUXOUTPUT3_PIN
+#endif
+
+// Define flood and mist coolant enable output pins.
+#if COOLANT_ENABLE & COOLANT_FLOOD
+#define COOLANT_FLOOD_PORT      AUXOUTPUT5_PORT
+#define COOLANT_FLOOD_PIN       AUXOUTPUT5_PIN
+#endif
+#if COOLANT_ENABLE & COOLANT_MIST
+#define COOLANT_MIST_PORT       AUXOUTPUT6_PORT
+#define COOLANT_MIST_PIN        AUXOUTPUT6_PIN
+#endif
+
+#define AUXINPUT7_PORT          GPIO_PORTC_BASE
+#define AUXINPUT7_PIN           4
+
+// Define user-control CONTROLs (cycle start, reset, feed hold) input pins.
+#if CNC_BOOSTERPACK_SHORTS
+    #define CONTROL_PORT        GPIO_PORTC_BASE
+    #define RESET_PIN           7
+    #define FEED_HOLD_PIN       5
+    #define CYCLE_START_PIN     6
+#else
+#define CONTROL_PORT            GPIO_PORTC_BASE
+#define RESET_PIN               7
+#define FEED_HOLD_PIN           6
+#define CYCLE_START_PIN         5
+#endif
+
+#if SAFETY_DOOR_ENABLE
+#define SAFETY_DOOR_PORT        AUXINPUT7_PORT
+#define SAFETY_DOOR_PIN         AUXINPUT7_PIN
+#endif
 
 // Input definitions
 

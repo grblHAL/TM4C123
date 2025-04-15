@@ -1,24 +1,24 @@
 /*
   i2c.c - I2C interface
 
-  Grbl driver code for Texas Instruments Tiva C (TM4C123GH6PM) ARM processor
+  grblHAL driver code for Texas Instruments Tiva C (TM4C123GH6PM) ARM processor
 
   Part of grblHAL
 
   Copyright (c) 2018-2021 Terje Io
 
-  Grbl is free software: you can redistribute it and/or modify
+  grblHAL is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 3 of the License, or
   (at your option) any later version.
 
-  Grbl is distributed in the hope that it will be useful,
+  grblHAL is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
 
   You should have received a copy of the GNU General Public License
-  along with Grbl.  If not, see <http://www.gnu.org/licenses/>.
+  along with grblHAL. If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "i2c.h"
@@ -55,10 +55,15 @@ static i2c_trans_t i2c;
 
 static void I2C_interrupt_handler (void);
 
-// get bytes (max 8), waits for result
-static uint8_t* I2C_Receive (uint32_t i2cAddr, uint32_t bytes, bool block)
+bool i2c_probe (i2c_address_t i2cAddr)
 {
-    i2c.data  = i2c.buffer;
+    return true;
+}
+
+// get bytes (max 8), waits for result
+bool i2c_receive (i2c_address_t i2cAddr, uint8_t *buf, size_t bytes, bool block)
+{
+    i2c.data  = buf ? buf : i2c.buffer;
     i2c.count = bytes;
     i2c.state = bytes == 1 ? I2CState_ReceiveLast : (bytes == 2 ? I2CState_ReceiveNextToLast : I2CState_ReceiveNext);
 
@@ -68,13 +73,13 @@ static uint8_t* I2C_Receive (uint32_t i2cAddr, uint32_t bytes, bool block)
     if(block)
         while(i2cIsBusy);
 
-    return i2c.buffer;
+    return true;
 }
 
-static void I2C_Send (uint32_t i2cAddr, uint8_t bytes, bool block)
+bool i2c_send (i2c_address_t i2cAddr, uint8_t *buf, size_t bytes, bool block)
 {
     i2c.count = bytes - 1;
-    i2c.data  = i2c.buffer;
+    i2c.data  = buf ? buf : i2c.buffer;
     i2c.state = bytes == 1 ? I2CState_AwaitCompletion : (bytes == 2 ? I2CState_SendLast : I2CState_SendNext);
     I2CMasterSlaveAddrSet(I2C1_BASE, i2cAddr, false);
     I2CMasterDataPut(I2C1_BASE, *i2c.data++);
@@ -82,9 +87,24 @@ static void I2C_Send (uint32_t i2cAddr, uint8_t bytes, bool block)
 
     if(block)
         while(i2cIsBusy);
+
+    return true;
 }
 
-static uint8_t *I2C_ReadRegister (uint32_t i2cAddr, uint8_t bytes, bool block)
+bool i2c_get_keycode (i2c_address_t i2cAddr, keycode_callback_ptr callback)
+{
+    while(i2cIsBusy);
+
+    i2c.keycode_callback = callback;
+
+    i2c_receive(i2cAddr, NULL, 1, false);
+}
+
+#if TRINAMIC_ENABLE && TRINAMIC_I2C
+
+static uint8_t axis = 0xFF;
+
+static uint8_t *I2C_ReadRegister (i2c_address_t i2cAddr, uint8_t bytes, bool block)
 {
     while(i2cIsBusy);
 
@@ -102,19 +122,6 @@ static uint8_t *I2C_ReadRegister (uint32_t i2cAddr, uint8_t bytes, bool block)
     return i2c.buffer;
 }
 
-void i2c_get_keycode (uint_fast16_t i2cAddr, keycode_callback_ptr callback)
-{
-    while(i2cIsBusy);
-
-    i2c.keycode_callback = callback;
-
-    I2C_Receive(i2cAddr, 1, false);
-}
-
-#if TRINAMIC_ENABLE && TRINAMIC_I2C
-
-static uint8_t axis = 0xFF;
-
 TMC_spi_status_t tmc_spi_read (trinamic_motor_t driver, TMC_spi_datagram_t *datagram)
 {
     uint8_t *res;
@@ -124,7 +131,7 @@ TMC_spi_status_t tmc_spi_read (trinamic_motor_t driver, TMC_spi_datagram_t *data
 
     if(driver.axis != axis) {
         i2c.buffer[0] = driver.axis | 0x80;
-        I2C_Send(I2C_ADR_I2CBRIDGE, 1, true);
+        i2c_send(I2C_ADR_I2CBRIDGE, NULL, 1, true);
 
         axis = driver.axis;
     }
@@ -154,7 +161,7 @@ TMC_spi_status_t tmc_spi_write (trinamic_motor_t driver, TMC_spi_datagram_t *dat
 
     if(driver.axis != axis) {
         i2c.buffer[0] = driver.axis | 0x80;
-        I2C_Send(I2C_ADR_I2CBRIDGE, 1, true);
+        i2c_send(I2C_ADR_I2CBRIDGE, NULL, 1, true);
 
         while(i2cIsBusy);
 
@@ -169,15 +176,20 @@ TMC_spi_status_t tmc_spi_write (trinamic_motor_t driver, TMC_spi_datagram_t *dat
     i2c.buffer[4] = datagram->payload.value & 0xFF;
     datagram->addr.write = Off;
 
-    I2C_Send(I2C_ADR_I2CBRIDGE, 5, true);
+    i2c_send(I2C_ADR_I2CBRIDGE, NULL, 5, true);
 
     return status;
 }
 
 #endif
 
-void i2c_init (void)
+i2c_cap_t i2c_start (void)
 {
+    static i2c_cap_t cap = {};
+
+    if(cap.started)
+        return cap;
+
     SysCtlPeripheralEnable(SYSCTL_PERIPH_I2C1);
     SysCtlPeripheralReset(SYSCTL_PERIPH_I2C1);
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOA);
@@ -213,6 +225,10 @@ void i2c_init (void)
 
     hal.periph_port.register_pin(&scl);
     hal.periph_port.register_pin(&sda);
+
+    cap.started = cap.tx_non_blocking = cap.tx_dma = On;
+
+    return cap;
 }
 
 static void I2C_interrupt_handler (void)

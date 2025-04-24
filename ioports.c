@@ -173,11 +173,11 @@ void ioports_event (input_signal_t *input)
     spin_lock = false;
 }
 
-static int32_t wait_on_input (io_port_type_t type, uint8_t port, wait_mode_t wait_mode, float timeout)
+static int32_t wait_on_input (uint8_t port, wait_mode_t wait_mode, float timeout)
 {
     int32_t value = -1;
 
-    if(port < digital.in.n_ports) {
+    if(port < digital.in.n_ports)
         value = get_input(&aux_in[port], (settings.ioport.invert_in.mask >> port) & 0x01, wait_mode, timeout);
 
     return value;

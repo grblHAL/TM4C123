@@ -97,7 +97,7 @@ bool i2c_get_keycode (i2c_address_t i2cAddr, keycode_callback_ptr callback)
 
     i2c.keycode_callback = callback;
 
-    i2c_receive(i2cAddr, NULL, 1, false);
+    return i2c_receive(i2cAddr, NULL, 1, false);
 }
 
 #if TRINAMIC_ENABLE && TRINAMIC_I2C

@@ -93,9 +93,9 @@ static nvs_transfer_result_t writeBlock (uint32_t destination, uint8_t *source, 
 
     if(size > 0 && with_checksum) {
         uint16_t checksum = calc_checksum(source, size);
-        putByte(destination, checksum & 0xFF);
+        putByte(destination + EEPROMOFFSET + size, checksum & 0xFF);
 #if NVS_CRC_BYTES > 1
-        putByte(++destination, checksum >> 1);
+        putByte(destination + EEPROMOFFSET + size + 1, checksum >> 8);
 #endif
     }
 
@@ -125,7 +125,7 @@ static nvs_transfer_result_t readBlock (uint8_t *destination, uint32_t source, u
 #if NVS_CRC_BYTES == 1
     return !with_checksum || calc_checksum(destination, size) == getByte(source);
 #else
-    return !with_checksum || calc_checksum(destination, size) == (getByte(source) | (getByte(source + 1) << 8));
+    return !with_checksum || calc_checksum(destination, size) == (getByte(source + size) | (getByte(source + size + 1) << 8));
 #endif
 }
 

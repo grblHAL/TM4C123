@@ -37,8 +37,8 @@
 #define AUX_CONTROLS (AUX_CONTROL_SPINDLE|AUX_CONTROL_COOLANT)
 #endif
 
+#include "grbl/task.h"
 #include "grbl/machine_limits.h"
-#include "grbl/protocol.h"
 #include "grbl/state_machine.h"
 #include "grbl/pin_bits_masks.h"
 
@@ -657,7 +657,7 @@ static void aux_irq_handler (uint8_t port, bool state)
 #endif
 #ifdef MPG_MODE_PIN
             case Input_MPGSelect:
-                protocol_enqueue_foreground_task(mpg_select, NULL);
+                task_add_immediate(mpg_select, NULL);
                 break;
 #endif
             default:
@@ -1648,7 +1648,7 @@ bool driver_init (void)
     hal.driver_cap.limits_pull_up = On;
 #if  MPG_MODE == 1
     if(hal.driver_cap.mpg_mode = stream_mpg_register(serial2Init(115200), false, NULL))
-        protocol_enqueue_foreground_task(mpg_enable, NULL);
+        task_run_on_startup(mpg_enable, NULL);
 #endif
 
     uint32_t i;
@@ -1828,7 +1828,7 @@ static /* inline __attribute__((always_inline))*/ IRQHandler (input_signal_t *in
 #if  MPG_MODE == 1
                 case PinGroup_MPG:
                     GPIOIntDisable(MPG_MODE_PORT, MPG_MODE_BIT);
-                    protocol_enqueue_foreground_task(mpg_select, NULL);
+                    task_add_immediate(mpg_select, NULL);
                     break;
 #endif
 

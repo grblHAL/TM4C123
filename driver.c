@@ -725,28 +725,36 @@ bool aux_out_claim_explicit (aux_ctrl_out_t *aux_ctrl)
 
 inline static void spindle_off (spindle_ptrs_t *spindle)
 {
+#if DRIVER_SPINDLE_ENABLE & SPINDLE_PWM
     spindle->context.pwm->flags.enable_out = Off;
-#ifdef SPINDLE_DIRECTION_PIN
+  #ifdef SPINDLE_DIRECTION_PIN
     if(spindle->context.pwm->flags.cloned) {
         GPIOPinWrite(SPINDLE_DIRECTION_PORT, SPINDLE_DIRECTION_BIT, settings.pwm_spindle.invert.ccw ? SPINDLE_DIRECTION_BIT : 0);
     } else {
         GPIOPinWrite(SPINDLE_ENABLE_PORT, SPINDLE_ENABLE_BIT, settings.pwm_spindle.invert.on ? SPINDLE_ENABLE_BIT : 0);
     }
-#elif defined(SPINDLE_ENABLE_PIN)
+  #elif defined(SPINDLE_ENABLE_PIN)
+    GPIOPinWrite(SPINDLE_ENABLE_PORT, SPINDLE_ENABLE_BIT, settings.pwm_spindle.invert.on ? SPINDLE_ENABLE_BIT : 0);
+  #endif
+#else
     GPIOPinWrite(SPINDLE_ENABLE_PORT, SPINDLE_ENABLE_BIT, settings.pwm_spindle.invert.on ? SPINDLE_ENABLE_BIT : 0);
 #endif
 }
 
 inline static void spindle_on (spindle_ptrs_t *spindle)
 {
+#if DRIVER_SPINDLE_ENABLE & SPINDLE_PWM
     spindle->context.pwm->flags.enable_out = On;
-#ifdef SPINDLE_DIRECTION_PIN
+  #ifdef SPINDLE_DIRECTION_PIN
     if(spindle->context.pwm->flags.cloned) {
         GPIOPinWrite(SPINDLE_DIRECTION_PORT, SPINDLE_DIRECTION_BIT, settings.pwm_spindle.invert.ccw ? 0 : SPINDLE_DIRECTION_BIT);
     } else {
         GPIOPinWrite(SPINDLE_ENABLE_PORT, SPINDLE_ENABLE_BIT, settings.pwm_spindle.invert.on ? 0 : SPINDLE_ENABLE_BIT);
     }
-#elif defined(SPINDLE_ENABLE_PIN)
+  #elif defined(SPINDLE_ENABLE_PIN)
+    GPIOPinWrite(SPINDLE_ENABLE_PORT, SPINDLE_ENABLE_BIT, settings.pwm_spindle.invert.on ? 0 : SPINDLE_ENABLE_BIT);
+  #endif
+#else
     GPIOPinWrite(SPINDLE_ENABLE_PORT, SPINDLE_ENABLE_BIT, settings.pwm_spindle.invert.on ? 0 : SPINDLE_ENABLE_BIT);
 #endif
 }
@@ -1530,7 +1538,7 @@ bool driver_init (void)
 
     hal.f_step_timer = SysCtlPIOSCCalibrate(SYSCTL_PIOSC_CAL_AUTO);
     hal.info = "TM4C123HP6PM";
-    hal.driver_version = "250404";
+    hal.driver_version = "250514";
 #ifdef BOARD_NAME
     hal.board = BOARD_NAME;
 #endif

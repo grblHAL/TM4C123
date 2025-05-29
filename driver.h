@@ -36,6 +36,8 @@
 #include "my_machine.h"
 #endif
 
+#define OPTS_POSTPROCESSING
+
 #include "grbl/driver_opts.h"
 
 #ifndef CNC_BOOSTERPACK_SHORTS
@@ -90,6 +92,10 @@
 #define DIGITAL_IN(port, pin) !!GPIOPinRead(port, 1<<pin)
 #define DIGITAL_OUT(port, pin, on) GPIOPinWrite(port, 1<<pin, (on) ? 1<<pin : 0);
 
+#ifndef CONTROL_ENABLE
+#define CONTROL_ENABLE (CONTROL_HALT|CONTROL_FEED_HOLD|CONTROL_CYCLE_START)
+#endif
+
 #ifdef BOARD_CNC_BOOSTERPACK
 #include "cnc_boosterpack_map.h"
 #elif defined(BOARD_MY_MACHINE)
@@ -121,6 +127,8 @@
 #define PPI_ENABLE_TIMER_BASE timerBase(PPI_ENABLE_TIM)
 #define PPI_ENABLE_TIMER_INT timerINT(PPI_ENABLE_TIM, A)
 #endif
+
+#include "grbl/driver_opts2.h"
 
 typedef struct {
     pin_function_t id;

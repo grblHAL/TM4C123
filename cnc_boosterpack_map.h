@@ -157,27 +157,6 @@
 #define COOLANT_MIST_PIN        AUXOUTPUT6_PIN
 #endif
 
-#define AUXINPUT7_PORT          GPIO_PORTC_BASE
-#define AUXINPUT7_PIN           4
-
-// Define user-control CONTROLs (cycle start, reset, feed hold) input pins.
-#if CNC_BOOSTERPACK_SHORTS
-    #define CONTROL_PORT        GPIO_PORTC_BASE
-    #define RESET_PIN           7
-    #define FEED_HOLD_PIN       5
-    #define CYCLE_START_PIN     6
-#else
-#define CONTROL_PORT            GPIO_PORTC_BASE
-#define RESET_PIN               7
-#define FEED_HOLD_PIN           6
-#define CYCLE_START_PIN         5
-#endif
-
-#if SAFETY_DOOR_ENABLE
-#define SAFETY_DOOR_PORT        AUXINPUT7_PORT
-#define SAFETY_DOOR_PIN         AUXINPUT7_PIN
-#endif
-
 // Input definitions
 
 #ifndef AUXOUTPUT0_PORT
@@ -210,10 +189,42 @@
 
 #define AUXINPUT6_PORT          AUXIO6_PORT
 #define AUXINPUT6_PIN           AUXIO6_PIN
+#define AUXINPUT7_PORT          GPIO_PORTC_BASE
+#define AUXINPUT7_PIN           4
+#define AUXINPUT8_PORT          GPIO_PORTC_BASE
+#define AUXINPUT8_PIN           7
+
+#if CNC_BOOSTERPACK_SHORTS
+#define AUXINPUT9_PORT          GPIO_PORTC_BASE
+#define AUXINPUT9_PIN           5
+#define AUXINPUT10_PORT         GPIO_PORTC_BASE
+#define AUXINPUT10_PIN          6
+#else
+#define AUXINPUT9_PORT          GPIO_PORTC_BASE
+#define AUXINPUT9_PIN           6
+#define AUXINPUT10_PORT         GPIO_PORTC_BASE
+#define AUXINPUT10_PIN          5
+#endif
+
+// Define user-control controls (cycle start, reset, feed hold) input pins.
+#if CONTROL_ENABLE & CONTROL_HALT
+#define RESET_PORT              AUXINPUT8_PORT
+#define RESET_PIN               AUXINPUT8_PIN
+#endif
+#if CONTROL_ENABLE & CONTROL_FEED_HOLD
+#define FEED_HOLD_PORT          AUXINPUT9_PORT
+#define FEED_HOLD_PIN           AUXINPUT9_PIN
+#endif
+#if CONTROL_ENABLE & CONTROL_CYCLE_START
+#define CYCLE_START_PORT        AUXINPUT10_PORT
+#define CYCLE_START_PIN         AUXINPUT10_PIN
+#endif
 
 // Define probe switch input pin.
+#if PROBE_ENABLE
 #define PROBE_PORT              AUXINPUT5_PORT
 #define PROBE_PIN               AUXINPUT5_PIN
+#endif
 
 #if MPG_MODE == 1
 #define MPG_MODE_PORT           AUXINPUT2_PORT
@@ -223,6 +234,11 @@
 #if I2C_STROBE_ENABLE
 #define I2C_STROBE_PORT         AUXINPUT6_PORT
 #define I2C_STROBE_PIN          AUXINPUT6_PIN
+#endif
+
+#if SAFETY_DOOR_ENABLE
+#define SAFETY_DOOR_PORT        AUXINPUT7_PORT
+#define SAFETY_DOOR_PIN         AUXINPUT7_PIN
 #endif
 
 #if MOTOR_FAULT_ENABLE && defined(AUXINPUT2_PORT)

@@ -428,7 +428,7 @@ static void stepperGoIdle (bool clear_signals)
 static void stepperCyclesPerTick (uint32_t cycles_per_tick)
 {
 // Limit min steps/s to about 2 (hal.f_step_timer @ 20MHz)
-#ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
+#if ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
     TimerLoadSet(STEPPER_TIMER_BASE, TIMER_A, cycles_per_tick < (1UL << 18) ? cycles_per_tick : (1UL << 18) - 1UL);
 #else
     TimerLoadSet(STEPPER_TIMER_BASE, TIMER_A, cycles_per_tick < (1UL << 23) ? cycles_per_tick : (1UL << 23) - 1UL);

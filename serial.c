@@ -1,12 +1,12 @@
 //
 // serial.c - (UART) port library for Tiva
 //
-// v1.7 / 2024-10-31 / Io Engineering / Terje
+// v1.8 / 2025-10-30 / Io Engineering / Terje
 //
 
 /*
 
-Copyright (c) 2017-2024, Terje Io
+Copyright (c) 2017-2025, Terje Io
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -80,7 +80,7 @@ static void serialRxCancel (void)
     rxbuffer.head = (rxbuffer.tail + 1) & (RX_BUFFER_SIZE - 1);
 }
 
-static bool serialPutC (const char c)
+static bool serialPutC (const uint8_t c)
 {
     uint_fast16_t next_head;
 
@@ -104,7 +104,7 @@ static bool serialPutC (const char c)
 
 static void serialWriteS (const char *data)
 {
-    char c, *ptr = (char *)data;
+    uint8_t c, *ptr = (uint8_t *)data;
 
     while((c = *ptr++) != '\0')
         serialPutC(c);
@@ -116,9 +116,9 @@ static void serialWriteLn (const char *data)
     serialWriteS(ASCII_EOL);
 }
 */
-static void serialWrite (const char *data, uint16_t length)
+static void serialWrite (const uint8_t *data, uint16_t length)
 {
-    char *ptr = (char *)data;
+    uint8_t *ptr = (uint8_t *)data;
 
     while(length--)
         serialPutC(*ptr++);
@@ -127,16 +127,15 @@ static void serialWrite (const char *data, uint16_t length)
 //
 // serialGetC - returns -1 if no data available
 //
-static int16_t serialGetC (void)
+static int32_t serialGetC (void)
 {
-    int16_t data;
     uint_fast16_t bptr = rxbuffer.tail;
 
     if(bptr == rxbuffer.head)
         return -1; // no data available else EOF
 
 //    UARTIntDisable(UARTCH, UART_INT_RX|UART_INT_RT);
-    data = rxbuffer.data[bptr++];                   // Get next character, increment tmp pointer
+    int32_t data = (int32_t)rxbuffer.data[bptr++];  // Get next character, increment tmp pointer
     rxbuffer.tail = bptr & (RX_BUFFER_SIZE - 1);    // and update pointer
 
 //    UARTIntEnable(UARTCH, UART_INT_RX|UART_INT_RT);
@@ -161,7 +160,7 @@ static uint16_t serialTxCount(void) {
     return BUFCOUNT(head, tail, TX_BUFFER_SIZE);
 }
 
-static bool serialEnqueueRtCommand (char c)
+static bool serialEnqueueRtCommand (uint8_t c)
 {
     return enqueue_realtime_command(c);
 }
@@ -309,9 +308,9 @@ static void uart_interrupt_handler (void)
             UARTCharGet(UARTCH);                            // and do dummy read to clear interrupt;
         } else {
             data = UARTCharGet(UARTCH);
-            if(!enqueue_realtime_command((char)data)) {
-                rxbuffer.data[rxbuffer.head] = (char)data;  // Add data to buffer
-                rxbuffer.head = bptr;                       // and update pointer
+            if(!enqueue_realtime_command((uint8_t)data)) {
+                rxbuffer.data[rxbuffer.head] = (uint8_t)data;   // Add data to buffer
+                rxbuffer.head = bptr;                           // and update pointer
             }
         }
 

@@ -366,7 +366,7 @@ static void driver_delay_ms (uint32_t ms, void (*callback)(void))
         SysTickEnable();
         if(!(delay.callback = callback)) {
             while(delay.ms)
-                grbl.on_execute_delay(state_get());
+                task_execute(true);
         }
     } else {
         if(delay.ms) {
@@ -1524,7 +1524,7 @@ bool driver_init (void)
 
     hal.f_step_timer = SysCtlPIOSCCalibrate(SYSCTL_PIOSC_CAL_AUTO);
     hal.info = "TM4C123HP6PM";
-    hal.driver_version = "251219";
+    hal.driver_version = "261003";
 #ifdef BOARD_NAME
     hal.board = BOARD_NAME;
 #endif

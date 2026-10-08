@@ -967,42 +967,57 @@ static coolant_state_t coolantGetState (void)
     return state;
 }
 
+static volatile uint32_t lock;
+
+static void disable_irq (void)
+{
+    if(!__get_PRIMASK() || lock) {
+        lock++;
+        __disable_irq();
+    }
+}
+
+static void enable_irq (void)
+{
+    if(lock && !--lock)
+        __set_PRIMASK(0);
+}
+
 // Helper functions for setting/clearing/inverting individual bits atomically (uninterruptable)
 static void bitsSetAtomic (volatile uint_fast16_t *ptr, uint_fast16_t bits)
 {
-    IntMasterDisable();
+    uint32_t irq = __get_PRIMASK();
+    __set_PRIMASK(1);
+
     *ptr |= bits;
-    IntMasterEnable();
+
+    __set_PRIMASK(irq);
 }
 
 static uint_fast16_t bitsClearAtomic (volatile uint_fast16_t *ptr, uint_fast16_t bits)
 {
-    IntMasterDisable();
+    uint32_t irq = __get_PRIMASK();
+    __set_PRIMASK(1);
+
     uint_fast16_t prev = *ptr;
     *ptr &= ~bits;
-    IntMasterEnable();
+
+    __set_PRIMASK(irq);
 
     return prev;
 }
 
 static uint_fast16_t valueSetAtomic (volatile uint_fast16_t *ptr, uint_fast16_t value)
 {
-    IntMasterDisable();
+    uint32_t irq = __get_PRIMASK();
+    __set_PRIMASK(1);
+
     uint_fast16_t prev = *ptr;
     *ptr = value;
-    IntMasterEnable();
+
+    __set_PRIMASK(irq);
 
     return prev;
-}
-
-static void enable_irq (void)
-{
-    IntMasterEnable();
-}
-
-static void disable_irq (void)
-{
-    IntMasterDisable();
 }
 
 #if  MPG_MODE == 1
@@ -1524,7 +1539,7 @@ bool driver_init (void)
 
     hal.f_step_timer = SysCtlPIOSCCalibrate(SYSCTL_PIOSC_CAL_AUTO);
     hal.info = "TM4C123HP6PM";
-    hal.driver_version = "261003";
+    hal.driver_version = "261007";
 #ifdef BOARD_NAME
     hal.board = BOARD_NAME;
 #endif
@@ -1630,7 +1645,6 @@ bool driver_init (void)
     hal.coolant_cap.bits = COOLANT_ENABLE;
     hal.driver_cap.software_debounce = On;
     hal.driver_cap.step_pulse_delay = On;
-    hal.driver_cap.amass_level = 3;
     hal.driver_cap.control_pull_up = On;
     hal.driver_cap.limits_pull_up = On;
 #if  MPG_MODE == 1

@@ -973,7 +973,7 @@ static void disable_irq (void)
 {
     if(!__get_PRIMASK() || lock) {
         lock++;
-        __disable_irq();
+        __set_PRIMASK(1);
     }
 }
 

@@ -1645,8 +1645,8 @@ bool driver_init (void)
     hal.coolant_cap.bits = COOLANT_ENABLE;
     hal.driver_cap.software_debounce = On;
     hal.driver_cap.step_pulse_delay = On;
-    hal.driver_cap.control_pull_up = On;
-    hal.driver_cap.limits_pull_up = On;
+    hal.driver_cap.pullup_enabled = PULLUPS_ENABLE;
+
 #if  MPG_MODE == 1
     if(hal.driver_cap.mpg_mode = stream_mpg_register(serial2Init(115200), false, NULL))
         task_run_on_startup(mpg_enable, NULL);

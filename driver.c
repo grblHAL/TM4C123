@@ -732,15 +732,15 @@ inline static void spindle_off (spindle_ptrs_t *spindle)
     spindle->context.pwm->flags.enable_out = Off;
   #ifdef SPINDLE_DIRECTION_PIN
     if(spindle->context.pwm->flags.cloned) {
-        GPIOPinWrite(SPINDLE_DIRECTION_PORT, SPINDLE_DIRECTION_BIT, settings.pwm_spindle.invert.ccw ? SPINDLE_DIRECTION_BIT : 0);
+        GPIOPinWrite(SPINDLE_DIRECTION_PORT, SPINDLE_DIRECTION_BIT, spindle->context.pwm->settings->invert.on ? SPINDLE_DIRECTION_BIT : 0);
     } else {
-        GPIOPinWrite(SPINDLE_ENABLE_PORT, SPINDLE_ENABLE_BIT, settings.pwm_spindle.invert.on ? SPINDLE_ENABLE_BIT : 0);
+        GPIOPinWrite(SPINDLE_ENABLE_PORT, SPINDLE_ENABLE_BIT, spindle->context.pwm->settings->invert.on ? SPINDLE_ENABLE_BIT : 0);
     }
   #elif defined(SPINDLE_ENABLE_PIN)
-    GPIOPinWrite(SPINDLE_ENABLE_PORT, SPINDLE_ENABLE_BIT, settings.pwm_spindle.invert.on ? SPINDLE_ENABLE_BIT : 0);
+    GPIOPinWrite(SPINDLE_ENABLE_PORT, SPINDLE_ENABLE_BIT, spindle->context.pwm->settings->invert.on ? SPINDLE_ENABLE_BIT : 0);
   #endif
 #else
-    GPIOPinWrite(SPINDLE_ENABLE_PORT, SPINDLE_ENABLE_BIT, settings.pwm_spindle.invert.on ? SPINDLE_ENABLE_BIT : 0);
+    GPIOPinWrite(SPINDLE_ENABLE_PORT, SPINDLE_ENABLE_BIT, spindle->context.pwm->settings->invert.on ? SPINDLE_ENABLE_BIT : 0);
 #endif
 }
 
@@ -750,21 +750,23 @@ inline static void spindle_on (spindle_ptrs_t *spindle)
     spindle->context.pwm->flags.enable_out = On;
   #ifdef SPINDLE_DIRECTION_PIN
     if(spindle->context.pwm->flags.cloned) {
-        GPIOPinWrite(SPINDLE_DIRECTION_PORT, SPINDLE_DIRECTION_BIT, settings.pwm_spindle.invert.ccw ? 0 : SPINDLE_DIRECTION_BIT);
+        GPIOPinWrite(SPINDLE_DIRECTION_PORT, SPINDLE_DIRECTION_BIT, spindle->context.pwm->settings->invert.on ? 0 : SPINDLE_DIRECTION_BIT);
     } else {
-        GPIOPinWrite(SPINDLE_ENABLE_PORT, SPINDLE_ENABLE_BIT, settings.pwm_spindle.invert.on ? 0 : SPINDLE_ENABLE_BIT);
+        GPIOPinWrite(SPINDLE_ENABLE_PORT, SPINDLE_ENABLE_BIT, spindle->context.pwm->settings->invert.on ? 0 : SPINDLE_ENABLE_BIT);
     }
   #elif defined(SPINDLE_ENABLE_PIN)
-    GPIOPinWrite(SPINDLE_ENABLE_PORT, SPINDLE_ENABLE_BIT, settings.pwm_spindle.invert.on ? 0 : SPINDLE_ENABLE_BIT);
+    GPIOPinWrite(SPINDLE_ENABLE_PORT, SPINDLE_ENABLE_BIT, spindle->context.pwm->settings->invert.on ? 0 : SPINDLE_ENABLE_BIT);
   #endif
 #else
-    GPIOPinWrite(SPINDLE_ENABLE_PORT, SPINDLE_ENABLE_BIT, settings.pwm_spindle.invert.on ? 0 : SPINDLE_ENABLE_BIT);
+    GPIOPinWrite(SPINDLE_ENABLE_PORT, SPINDLE_ENABLE_BIT, spindle->context.pwm->settings->invert.on ? 0 : SPINDLE_ENABLE_BIT);
 #endif
 }
 
-inline static void spindle_dir (bool ccw)
+inline static void spindle_dir (spindle_ptrs_t *spindle, bool ccw)
 {
-    GPIOPinWrite(SPINDLE_DIRECTION_PORT, SPINDLE_DIRECTION_BIT, (ccw ^ settings.pwm_spindle.invert.ccw) ? SPINDLE_DIRECTION_BIT : 0);
+    if(!(spindle->context.pwm->flags.cloned || spindle->cap.clone)) {
+        GPIOPinWrite(SPINDLE_DIRECTION_PORT, SPINDLE_DIRECTION_BIT, (ccw ^ spindle->context.pwm->settings->invert.ccw) ? SPINDLE_DIRECTION_BIT : 0);
+    }
 }
 
 // Start or stop spindle
@@ -772,10 +774,10 @@ static void spindleSetState (spindle_ptrs_t *spindle, spindle_state_t state, flo
 {
     UNUSED(rpm);
 
-    if(!state.on)
+    if(!(spindle->context.pwm->flags.cloned ? state.ccw : state.on))
         spindle_off(spindle);
     else {
-        spindle_dir(state.ccw);
+        spindle_dir(spindle, state.ccw);
         spindle_on(spindle);
     }
 }
@@ -877,10 +879,7 @@ static void spindleSetStateVariable (spindle_ptrs_t *spindle, spindle_state_t st
         spindle_off(spindle);
         pwm_off(spindle);
     } else {
-#ifdef SPINDLE_DIRECTION_PIN
-        if(!spindle->context.pwm->flags.cloned)
-            spindle_dir(state.ccw);
-#endif
+        spindle_dir(spindle, state.ccw);
         if(rpm == 0.0f && spindle->context.pwm->flags.rpm_controlled)
             spindle_off(spindle);
         else {
@@ -930,11 +929,18 @@ static void spindlePulseOn (spindle_ptrs_t *spindle, uint_fast16_t pulse_length)
 // Returns spindle state in a spindle_state_t variable
 static spindle_state_t spindleGetState (spindle_ptrs_t *spindle)
 {
-    spindle_state_t state = {0};
+    spindle_state_t state = { spindle->context.pwm->settings->invert.mask };
 
+#if DRIVER_SPINDLE_ENABLE & SPINDLE_ENA
     state.on = GPIOPinRead(SPINDLE_ENABLE_PORT, SPINDLE_ENABLE_BIT) != 0;
-    state.ccw = GPIOPinRead(SPINDLE_DIRECTION_PORT, SPINDLE_DIRECTION_BIT) != 0;
-    state.value ^= settings.pwm_spindle.invert.mask;
+#endif
+#if DRIVER_SPINDLE_ENABLE & SPINDLE_DIR
+    if(spindle->cap.direction)
+        state.ccw = GPIOPinRead(SPINDLE_DIRECTION_PORT, SPINDLE_DIRECTION_BIT) != 0;
+#endif
+
+    state.value ^= spindle->context.pwm->settings->invert.mask;
+
 #ifdef SPINDLE_PWM_PIN
     state.on |= spindle->param->state.on;
 #endif
@@ -1539,7 +1545,7 @@ bool driver_init (void)
 
     hal.f_step_timer = SysCtlPIOSCCalibrate(SYSCTL_PIOSC_CAL_AUTO);
     hal.info = "TM4C123HP6PM";
-    hal.driver_version = "261007";
+    hal.driver_version = "2611";
 #ifdef BOARD_NAME
     hal.board = BOARD_NAME;
 #endif
